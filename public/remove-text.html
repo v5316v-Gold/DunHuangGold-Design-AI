@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>去除图片文字</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .container {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    canvas {
+      max-width: 100%;
+      border: 2px solid #C8A45C;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+    button {
+      background: #C8A45C;
+      color: #000;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #D4B06A;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    h2 {
+      color: #C8A45C;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 图片文字去除工具</h1>
+
+  <div class="container">
+    <h2>原图</h2>
+    <canvas id="originalCanvas"></canvas>
+
+    <div style="margin: 20px 0;">
+      <button id="processBtn" onclick="processImage()">✨ 去除文字</button>
+      <button id="downloadBtn" onclick="downloadImage()" disabled>📥 下载结果</button>
+    </div>
+
+    <h2>处理结果</h2>
+    <canvas id="resultCanvas"></canvas>
+  </div>
+
+  <script>
+    const imageUrl = 'https://code.coze.cn/api/sandbox/coze_coding/file/proxy?expire_time=-1&file_path=assets%2Fimage.png&nonce=9b1d9c90-6bff-4a92-bc28-dd07fae8fff5&project_id=7623669896471134258&sign=6947def3ce6fe795cf156cac9387238c3ce8601f06258477bda629c421428a94';
+
+    const originalCanvas = document.getElementById('originalCanvas');
+    const resultCanvas = document.getElementById('resultCanvas');
+    const processBtn = document.getElementById('processBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = function() {
+      // 设置画布尺寸
+      originalCanvas.width = img.width;
+      originalCanvas.height = img.height;
+      resultCanvas.width = img.width;
+      resultCanvas.height = img.height;
+
+      // 绘制原图
+      const ctx = originalCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      console.log('图片加载成功:', img.width, 'x', img.height);
+    };
+
+    img.onerror = function() {
+      alert('图片加载失败！可能是因为跨域限制。');
+      console.error('图片加载失败');
+    };
+
+    img.src = imageUrl;
+
+    function processImage() {
+      const ctx = resultCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      const width = img.width;
+      const height = img.height;
+
+      // 定义文字区域
+      const textRegions = [
+        { x: 0, y: 0, width, height: height * 0.12 },  // 顶部文字
+        { x: 0, y: height * 0.28, width, height: height * 0.18 },  // 中间标题
+        { x: 0, y: height * 0.52, width, height: height * 0.12 },  // 底部描述
+      ];
+
+      console.log('开始处理...');
+
+      textRegions.forEach((region, index) => {
+        const imageData = ctx.getImageData(region.x, region.y, region.width, region.height);
+        const data = imageData.data;
+
+        for (let py = 0; py < region.height; py++) {
+          for (let px = 0; px < region.width; px++) {
+            const idx = (py * region.width + px) * 4;
+            const absX = region.x + px;
+            const absY = region.y + py;
+
+            // 从边缘采样
+            let r = 0, g = 0, b = 0, count = 0;
+            const sampleRadius = 50;
+
+            // 四个方向采样
+            for (let dist = sampleRadius; dist < sampleRadius * 4; dist += 5) {
+              // 上
+              if (absY - dist >= 0) {
+                const sidx = ((absY - dist) * width + absX) * 4;
+                r += data[sidx];
+                g += data[sidx + 1];
+                b += data[sidx + 2];
+                count++;
+              }
+              // 下
+              if (absY + dist < height) {
+                const sidx = ((absY + dist) * width + absX) * 4;
+                r += data[sidx];
+                g += data[sidx + 1];
+                b += data[sidx + 2];
+                count++;
+              }
+              // 左
+              if (absX - dist >= 0) {
+                const sidx = (absY * width + (absX - dist)) * 4;
+                r += data[sidx];
+                g += data[sidx + 1];
+                b += data[sidx + 2];
+                count++;
+              }
+              // 右
+              if (absX + dist < width) {
+                const sidx = (absY * width + (absX + dist)) * 4;
+                r += data[sidx];
+                g += data[sidx + 1];
+                b += data[sidx + 2];
+                count++;
+              }
+            }
+
+            if (count > 0) {
+              // 距离衰减混合
+              const centerX = region.width / 2;
+              const centerY = region.height / 2;
+              const distFromCenter = Math.sqrt((px - centerX) ** 2 + (py - centerY) ** 2);
+              const maxDist = Math.sqrt(centerX ** 2 + centerY ** 2);
+              const blend = Math.max(0.3, 1 - distFromCenter / maxDist);
+
+              data[idx] = Math.round(data[idx] * (1 - blend) + (r / count) * blend);
+              data[idx + 1] = Math.round(data[idx + 1] * (1 - blend) + (g / count) * blend);
+              data[idx + 2] = Math.round(data[idx + 2] * (1 - blend) + (b / count) * blend);
+            }
+          }
+        }
+
+        ctx.putImageData(imageData, region.x, region.y);
+        console.log(`区域 ${index + 1} 处理完成`);
+      });
+
+      console.log('处理完成！');
+      downloadBtn.disabled = false;
+      processBtn.textContent = '✓ 处理完成';
+    }
+
+    function downloadImage() {
+      const link = document.createElement('a');
+      link.download = 'clean-image.png';
+      link.href = resultCanvas.toDataURL('image/png');
+      link.click();
+    }
+  </script>
+</body>
+</html>

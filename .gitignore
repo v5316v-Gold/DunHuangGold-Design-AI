@@ -1,0 +1,88 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Debug logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local dev artifacts
+3000
+pm2-error.log
+pm2-out.log
+next-5000.err.log
+next-5000.out.log
+build.log
+dev-direct.log
+stop-5000.ps1
+test-spawn.js
+test-spawn2.js
+webui/
+
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Uploads (user-generated content)
+uploads/
+*.uploads
+
+# Local development
+.vercel
+.turbo
+
+# Database (local dev)
+*.db
+*.db-journal
+
+# Encryption keys
+*.pem
+*.key
+
+# Dependency lock files (use pnpm-lock.yaml only)
+package-lock.json
+yarn.lock
+
+# Upload directory (if different from default)
+.dunhuang-design/
+
+# Health check scripts output
+scripts/output/
+
+# Sentry
+.sentryclirc
+
+# Temporary archived scripts (user debugging artifacts)
+scripts/_temp/
+docs/_temp/
+
+# Worker 构建产物
+dist-workers/
+dunhuang-6-commits.patch

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "worker/src/**/*.ts",
+    "src/lib/**/*.ts",
+    "src/db/**/*.ts",
+    "src/storage/**/*.ts"
+  ],
+  "exclude": [
+    "src/test/**/*",
+    "src/components/**/*",
+    "src/app/**/*"
+  ]
+}

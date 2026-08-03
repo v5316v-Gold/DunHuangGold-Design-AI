@@ -1,0 +1,60 @@
+# 敦煌金 AI 平台 - Worker 专用 Dockerfile
+# 用途：独立部署 BullMQ orchestrator-worker（docker-compose 的 worker service）
+#
+# 构建：
+#   docker build -f Dockerfile.worker -t dunhuang-ai-worker:latest .
+#
+# 运行：
+#   docker run --rm \
+#     -e REDIS_URL=redis://host:6379 \
+#     -e DATABASE_URL=postgresql://user:pass@host:5432/db \
+#     -e JWT_SECRET=<32+ chars> \
+#     -e API_KEY_ENCRYPTION_KEY=<32 bytes hex> \
+#     dunhuang-ai-worker:latest
+
+# 阶段1: 依赖
+FROM node:20-alpine AS deps
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# 阶段2: 构建 worker 产物
+FROM node:20-alpine AS builder
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# 打包 worker（解析 @/ 别名，输出自包含 CJS）
+RUN ./node_modules/.bin/tsup workers/orchestrator-worker.ts \
+  --format cjs \
+  --platform node \
+  --target node20 \
+  --out-dir dist-workers \
+  --clean \
+  --external pg \
+  --external bcryptjs \
+  --external ioredis
+
+# 阶段3: 运行（最小镜像，只含 worker 产物 + 运行时依赖）
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# 复制 worker 产物
+COPY --from=builder /app/dist-workers ./dist-workers
+
+# 复制运行时依赖（pg/bcryptjs/ioredis 等 external 模块需要）
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./
+
+# 非 root 用户
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 worker
+USER worker
+
+# 健康检查：进程存活即可（worker 无 HTTP 端口）
+# 通过 node 进程检查（简单：确认进程存在）
+
+CMD ["node", "dist-workers/orchestrator-worker.js"]
