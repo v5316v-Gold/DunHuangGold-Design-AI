@@ -1,0 +1,25 @@
+-- Phase 0 Schema DDL 备份
+-- Generated: 2026-08-03T13:03:31.355Z
+-- Database: postgresql://***:***@localhost:5432/dunhuang
+
+-- api_configs: 0 rows
+-- app_settings: 0 rows
+-- audit_logs: 0 rows
+-- comfyui_configs: 0 rows
+-- comfyui_connections: 0 rows
+-- comfyui_execution_logs: 0 rows
+-- favorites: 0 rows
+-- features: 17 rows
+-- health_check: 0 rows
+-- loras: 0 rows
+-- power_logs: 2 rows
+-- power_transactions: 0 rows
+-- prompt_rules: 0 rows
+-- sessions: 0 rows
+-- system_settings: 0 rows
+-- tasks: 0 rows
+-- translate_settings: 0 rows
+-- users: 8 rows
+-- workflow_templates: 3 rows
+-- workflows: 0 rows
+-- works: 1 rows
