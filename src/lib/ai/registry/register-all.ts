@@ -1,11 +1,10 @@
 /**
- * AI 服务层 — 服务注册入口
+ * Phase 4.6 · 服务注册触发（对齐 services/index.ts 的 side-effect import）
  *
- * 导入此文件会自动注册所有 AI 服务到 registry。
- * 只需在路由文件顶部 import 一次即可。
+ * 供新架构入口统一注册 17 个 AI 服务。
  */
 
-// 导入顺序很重要：先 types、registry，再导入各服务
+// 触发全部服务注册（与旧 services/index.ts 等价的副作用导入）
 import '@/lib/ai-service/services/text2img';
 import '@/lib/ai-service/services/refine';
 import '@/lib/ai-service/services/relief';
@@ -25,6 +24,6 @@ import '@/lib/ai-service/services/dialogue';
 import '@/lib/ai-service/services/ai-assistant';
 import '@/lib/ai-service/services/tryon';
 
-export { registry } from '../service-registry';
-export { pipeline } from '../generation-pipeline';
-export type * from '../types';
+export function registerAllServices(): void {
+  // side-effect 已通过 import 完成；此函数供显式调用以消除未使用告警
+}

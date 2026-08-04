@@ -37,11 +37,12 @@ describe('P1-1: AI 服务注册完整性', () => {
     { type: 'stereo', label: '平面转雕塑', powerCost: 25, requiresImage: true },
     { type: 'dialogue', label: 'AI 对话', powerCost: 2, requiresImage: false },
     { type: 'ai-assistant', label: 'AI 助手', powerCost: 3, requiresImage: false },
+    { type: 'tryon', label: '佩戴效果', powerCost: 25, requiresImage: true },
   ];
 
-  it('registry 应该注册 17 个服务', () => {
+  it('registry 应该注册 18 个服务（17 + tryon 闭环）', () => {
     const all = registry!.list();
-    expect(all.length).toBe(17);
+    expect(all.length).toBe(18);
   });
 
   it.each(EXPECTED_SERVICES)(
