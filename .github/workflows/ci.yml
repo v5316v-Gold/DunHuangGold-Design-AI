@@ -1,0 +1,106 @@
+# 敦煌金 AI · CI Pipeline (Phase 9.10)
+# 触发: push / pull_request to main
+# 阶段: install → lint → typecheck → test:node → build (verify standalone 可生成)
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 防止同 PR 重复跑
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 禁用 next telemetry
+  NEXT_TELEMETRY_DISABLED: 1
+  # CI 测试用占位密钥（不许真密钥入仓）
+  API_KEY_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  JWT_SECRET: ci-test-jwt-secret-only-for-unit-tests-not-production
+
+jobs:
+  # ===== 1. 安装依赖 =====
+  install:
+    name: 📦 Install
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # SSH 部署公钥（私有镜像/registry 用）；当前仓库公开，HTTPS 即可
+          fetch-depth: 1
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Upload node_modules
+        uses: actions/upload-artifact@v4
+        with:
+          name: node_modules
+          path: node_modules
+          retention-days: 1
+
+  # ===== 2. 类型检查 =====
+  typecheck:
+    name: 🔍 TypeScript
+    needs: install
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/download-artifact@v4
+        with: { name: node_modules, path: node_modules }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: TypeScript strict check
+        run: pnpm exec tsc --noEmit
+
+  # ===== 3. Node 单测 =====
+  test:
+    name: 🧪 Test (node)
+    needs: install
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/download-artifact@v4
+        with: { name: node_modules, path: node_modules }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Run unit tests (node env)
+        run: pnpm run test:node
+
+  # ===== 4. 生产构建（验证 standalone 可生成） =====
+  build:
+    name: 🏗 Build (standalone)
+    needs: [typecheck, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/download-artifact@v4
+        with: { name: node_modules, path: node_modules }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Production build
+        run: pnpm run build
+      - name: Verify standalone output
+        run: |
+          if [ ! -d ".next/standalone" ]; then
+            echo "❌ .next/standalone not found"
+            exit 1
+          fi
+          echo "✅ standalone build verified"
+          ls -la .next/standalone | head -5

@@ -166,6 +166,20 @@ export class Logger {
 }
 
 // 创建日志记录器
+// Phase 9.11 · Logger.error 自动联动 Sentry 上报（需 SENTRY_DSN 环境变量）
 export function createLogger(context: string): Logger {
-  return new Logger(context);
+  const logger = new Logger(context);
+  const originalError = logger.error.bind(logger);
+  logger.error = (message: string, ...args: unknown[]) => {
+    originalError(message, ...args);
+    // 异步上报 Sentry（fire-and-forget，不影响 logger 性能）
+    void import('@/lib/sentry/capture').then(({ captureError }) => {
+      const data = args.length === 1 ? args[0] : args.length > 1 ? args : undefined;
+      const err = data instanceof Error ? data : new Error(`${context}: ${message}`);
+      captureError(err, { tags: { logger: context }, extra: { args } });
+    }).catch(() => {
+      // sentry 不可用时静默（不污染日志）
+    });
+  };
+  return logger;
 }
