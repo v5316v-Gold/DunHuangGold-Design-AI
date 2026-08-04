@@ -42,7 +42,7 @@ describe('sentry · capture', () => {
     );
   });
 
-  it('有 SENTRY_DSN → captureMessage 上报到指定 level', async () => {
+  it('有 DSN → captureMessage 上报到指定 level', async () => {
     process.env.SENTRY_DSN = 'https://fake@sentry.io/123';
     const spy = vi.fn();
     vi.doMock('@sentry/nextjs', () => ({
@@ -58,6 +58,78 @@ describe('sentry · capture', () => {
       'warning-test',
       expect.objectContaining({ level: 'warning' })
     );
+  });
+
+  it('PII 脱敏：password/token/secret 自动 [REDACTED]', async () => {
+    process.env.SENTRY_DSN = 'https://fake@sentry.io/123';
+    const spy = vi.fn();
+    vi.doMock('@sentry/nextjs', () => ({
+      init: vi.fn(),
+      captureException: spy,
+      captureMessage: spy,
+    }));
+
+    const { captureError } = await import('@/lib/sentry/capture');
+    await captureError(new Error('leak test'), {
+      extra: {
+        password: 'secret123',
+        apiKey: 'ak-test',
+        token: 'tk-test',
+        safeField: 'visible',
+      },
+    });
+
+    const callArgs = spy.mock.calls[0][1];
+    expect(callArgs.extra.password).toBe('[REDACTED]');
+    expect(callArgs.extra.apiKey).toBe('[REDACTED]');
+    expect(callArgs.extra.token).toBe('[REDACTED]');
+    expect(callArgs.extra.safeField).toBe('visible');
+  });
+
+  it('邮箱自动脱敏', async () => {
+    process.env.SENTRY_DSN = 'https://fake@sentry.io/123';
+    const spy = vi.fn();
+    vi.doMock('@sentry/nextjs', () => ({
+      init: vi.fn(),
+      captureException: spy,
+      captureMessage: spy,
+    }));
+
+    const { captureError } = await import('@/lib/sentry/capture');
+    await captureError(new Error('email test'), {
+      extra: { note: 'Contact user@example.com' },
+    });
+
+    const callArgs = spy.mock.calls[0][1];
+    expect(callArgs.extra.note).toBe('Contact us***@example.com');
+  });
+
+  it('setSentryUser 调用不抛错（无 DSN 模式）', async () => {
+    delete process.env.SENTRY_DSN;
+    const { setSentryUser, clearSentryUser } = await import('@/lib/sentry/capture');
+    await expect(setSentryUser({ id: 'u1', email: 'u@x.com' })).resolves.toBeUndefined();
+    await expect(clearSentryUser()).resolves.toBeUndefined();
+  });
+
+  it('setSentryUser 有 DSN → setUser 被调用', async () => {
+    process.env.SENTRY_DSN = 'https://fake@sentry.io/123';
+    const spy = vi.fn();
+    vi.doMock('@sentry/nextjs', () => ({
+      init: vi.fn(),
+      setUser: spy,
+      setUser: spy,
+      captureException: vi.fn(),
+      captureMessage: vi.fn(),
+    }));
+
+    const { setSentryUser } = await import('@/lib/sentry/capture');
+    await setSentryUser({ id: 'u123', email: 'alice@x.com', username: 'alice' });
+
+    expect(spy).toHaveBeenCalledWith({
+      id: 'u123',
+      email: 'alice@x.com',
+      username: 'alice',
+    });
   });
 });
 

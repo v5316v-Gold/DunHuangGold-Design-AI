@@ -4,6 +4,7 @@ import { db, users } from '@/storage/database/db';
 import { eq } from 'drizzle-orm';
 import { rateLimit, getClientIP, AUTH_LIMIT, rateLimitResponse } from '@/lib/rate-limit';
 import { randomUUID } from 'crypto';
+import { captureError, setSentryUser } from '@/lib/sentry/capture';
 
 // Phase 3.6：统一 requestId 注入（envelope 可追踪性）
 function reqId(): string {
@@ -112,9 +113,13 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
+    // Sentry 用户追踪（关联用户行为）
+    void setSentryUser({ id: newUser.id, email: newUser.email, username: newUser.nickname || undefined });
+
     return response;
   } catch (error) {
     console.error('注册失败:', error);
+    void captureError(error, { tags: { route: 'POST /api/auth/register' }, level: 'error' });
     return NextResponse.json(
       {  error: '服务器错误，请稍后重试' },
       { status: 500 }
