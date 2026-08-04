@@ -35,6 +35,7 @@ import {
   deductUserPower,
   refundUserPower,
 } from '@/lib/ai-service/power-helper';
+import { powerLedger } from '@/lib/ai/application/power-ledger';
 import { getFeatureCost } from '@/lib/feature-costs';
 import { orchestrator } from '@/lib/orchestrator/feature-orchestrator';
 import {
@@ -178,6 +179,22 @@ class GenerationService {
     // 3. 幂等键
     const idempotencyKey =
       input.idempotencyKey || deriveIdempotencyKey(userId, featureId, params);
+
+    // 3.5 算力预留（ADR-008：reserve 不立即扣减，任务完成 consume / 失败 release）
+    const reservation = await powerLedger.reserve({
+      userId,
+      featureId,
+      amount: cost,
+      idempotencyKey,
+    }).catch(() => null);
+    if (reservation && !reservation.success) {
+      return {
+        success: false,
+        code: 'INSUFFICIENT_POWER',
+        message: reservation.error || '算力不足',
+        details: { required: cost },
+      };
+    }
 
     // 4. 任务落库（统一走 tasks 表，不做散落 insert）
     let taskId = '';
@@ -436,6 +453,24 @@ class GenerationService {
     taskId: string,
     outcome: 'consume' | 'release'
   ): Promise<{ success: boolean; error?: string }> {
+    // Phase 6.5：优先走 PowerLedger 三态结算（reserve 已在 create 时建立）
+    const reservation = await powerLedger.findByTask(userId, taskId).catch(() => null);
+    if (reservation && reservation.status === 'reserved') {
+      const res = await powerLedger.settle(reservation.id, outcome);
+      if (res.success) {
+        await logAudit({
+          action: outcome === 'consume' ? 'power.consume' : 'power.release',
+          resourceType: 'task',
+          resourceId: taskId,
+          actorId: userId,
+          details: { cost: reservation.amount, ledger: true },
+        }).catch(() => undefined);
+        return { success: true };
+      }
+      return res;
+    }
+
+    // 兜底：无 ledger 预留时走旧 deduct/refund（兼容历史任务）
     const state = await getTaskState(taskId);
     if (!state) return { success: false, error: '任务不存在' };
 
