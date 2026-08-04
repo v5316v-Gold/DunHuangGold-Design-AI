@@ -156,7 +156,7 @@ export function withRateLimit(
     async (request: NextRequest, input?: unknown) => {
       const requestId = requestIdOf(request);
       const ip = getClientIp(request);
-      const key = `ratelimit:${ip}${config.perPath ? ':' + new URL(request.url).pathname : ''}`;
+      const key = `ratelimit:${ip}${config.perPath ? ':' + new URL(request.url).pathname : ''}`; // 与 @/lib/rate-limit 同前缀，共享计数
 
       try {
         const redis = getRedis();

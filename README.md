@@ -1,6 +1,6 @@
 # projects
 
-这是一个基于 [Next.js 16](https://nextjs.org) + [shadcn/ui](https://ui.shadcn.com) 的全栈应用项目，由扣子编程 CLI 创建。
+这是一个基于 [Next.js 15](https://nextjs.org) + [shadcn/ui](https://ui.shadcn.com) 的全栈应用项目，由扣子编程 CLI 创建。
 
 ## 快速开始
 
@@ -338,7 +338,7 @@ export const useStore = create<Store>((set) => ({
 
 ## 技术栈
 
-- **框架**: Next.js 16.1.1 (App Router)
+- **框架**: Next.js 15.1.0 (App Router)
 - **UI 组件**: shadcn/ui (基于 Radix UI)
 - **样式**: Tailwind CSS v4
 - **表单**: React Hook Form + Zod

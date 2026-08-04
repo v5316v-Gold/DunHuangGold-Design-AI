@@ -8,6 +8,7 @@
  */
 
 import { eq } from 'drizzle-orm';
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 import { db } from '@/db';
 import { providers, providerCredentials } from '@/db/schema/providers';
 import { withRetry } from './db-retry';
@@ -40,12 +41,11 @@ function getEncryptionKey(): Buffer | null {
 export function encryptSecret(plain: string): { ciphertext: string; fingerprint: string } | null {
   const key = getEncryptionKey();
   if (!key) return null;
-  const crypto = require('crypto') as typeof import('crypto');
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
   const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
-  const fingerprint = crypto.createHash('sha256').update(plain).digest('hex').slice(0, 16);
+  const fingerprint = createHash('sha256').update(plain).digest('hex').slice(0, 16);
   return {
     ciphertext: `${enc.toString('base64')}:${iv.toString('base64')}:${tag.toString('base64')}`,
     fingerprint,
@@ -56,10 +56,9 @@ export function encryptSecret(plain: string): { ciphertext: string; fingerprint:
 export function decryptSecret(stored: string): string | null {
   const key = getEncryptionKey();
   if (!key) return null;
-  const crypto = require('crypto') as typeof import('crypto');
   try {
     const [encB64, ivB64, tagB64] = stored.split(':');
-    const decipher = crypto.createDecipheriv(
+    const decipher = createDecipheriv(
       'aes-256-gcm',
       key,
       Buffer.from(ivB64, 'base64')
