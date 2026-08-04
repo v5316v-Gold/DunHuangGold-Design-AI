@@ -12,6 +12,7 @@
  */
 
 import { NextRequest } from 'next/server';
+import { randomUUID } from 'crypto';
 import { requireAuth } from '@/lib/auth';
 import { ApiErrors, fail, ok } from '@/lib/api/envelope';
 import { generationService } from '@/lib/ai/application/generation-service';
@@ -23,25 +24,32 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // 1. 鉴权
-  const user = await requireAuth(request);
-  if (!user) return ApiErrors.authRequired('req');
-  const requestId =
-    request.headers.get('X-Request-Id') || `req_${crypto.randomUUID()}`;
+  try {
+    // 1. 鉴权
+    const user = await requireAuth(request);
+    if (!user) return ApiErrors.authRequired('req');
+    const requestId = request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
 
-  // 2. 解析 taskId
-  const { id: taskId } = await params;
-  if (!taskId) return fail('INVALID_INPUT', '缺少任务 ID', { requestId });
+    // 2. 解析 taskId
+    const { id: taskId } = await params;
+    if (!taskId) return fail('INVALID_INPUT', '缺少任务 ID', { requestId });
 
-  // 3. 委托 GenerationService.query（归属校验在服务内）
-  const result = await generationService.query(user.userId, taskId, { requestId });
+    // 3. 委托 GenerationService.query（归属校验在服务内）
+    const result = await generationService.query(user.userId, taskId, { requestId });
 
-  if (!result.found) {
-    return fail('TASK_NOT_FOUND', '任务不存在', { requestId });
+    if (!result.found) {
+      return fail('TASK_NOT_FOUND', '任务不存在', { requestId });
+    }
+    if (!result.owned) {
+      return fail('PERMISSION_DENIED', '无权查看他人任务', { requestId });
+    }
+
+    return ok(result.task, { requestId });
+  } catch (error) {
+    console.error('[tasks/[id]] 查询任务异常:', error);
+    return fail('INTERNAL_ERROR', '查询任务失败', {
+      requestId: 'req_unknown',
+      details: { message: error instanceof Error ? error.message : String(error) },
+    });
   }
-  if (!result.owned) {
-    return fail('PERMISSION_DENIED', '无权查看他人任务', { requestId });
-  }
-
-  return ok(result.task, { requestId });
 }

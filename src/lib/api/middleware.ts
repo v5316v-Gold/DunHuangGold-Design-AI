@@ -1,5 +1,33 @@
-/* eslint-disable */
-// @ts-nocheck
+/**
+ * Phase 3.6 · API 中间件（完整实现，去掉 @ts-nocheck）
+ *
+ * Spec: docs/03-L2-API.md §6/§7 + Phase 2 脚手架正式落地
+ *
+ * 提供：
+ *   withRequestContext / withAuth / withAdmin / withValidation
+ *   withRateLimit / withIdempotency（防双扣 ADR-008）/ withAudit / dispatch
+ *
+ * 约定：
+ *   - Handler = (ctx, request, input) => NextResponse
+ *   - 各 middleware 返回 (request, input?) => Promise<NextResponse>，可直接挂路由
+ *   - requestId 统一从 X-Request-Id 取，缺省生成 req_<uuid>
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
+import { z } from 'zod';
+import { verifyToken } from '@/lib/auth';
+import { getRedis } from '@/lib/redis';
+import { logAudit } from '@/lib/audit-logger';
+import {
+  fail,
+  API_ERROR_CODES,
+  type ApiResponse,
+  type ApiErrorCode,
+} from './envelope';
+
+// ==================== Handler 类型 ====================
+
 export type Handler<P = unknown, R = unknown> = (
   ctx: RequestContext,
   request: NextRequest,
@@ -11,13 +39,15 @@ export interface RequestContext {
   user: { id: string; email: string; role: string } | null;
 }
 
+function requestIdOf(request: NextRequest): string {
+  return request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
+}
+
 // ==================== 1. withRequestContext ====================
 
-export function withRequestContext(handler: Handler): Handler {
+export function withRequestContext(handler: Handler) {
   return async (request: NextRequest, input?: unknown) => {
-    // 客户端可传 X-Request-Id，或服务端生成
-    const requestId = request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
-    const ctx: RequestContext = { requestId, user: null };
+    const ctx: RequestContext = { requestId: requestIdOf(request), user: null };
     return handler(ctx, request, input);
   };
 }
@@ -26,25 +56,24 @@ export function withRequestContext(handler: Handler): Handler {
 
 export function withAuth(handler: Handler) {
   return async (request: NextRequest, input?: unknown) => {
+    const requestId = requestIdOf(request);
     const token = extractToken(request);
     if (!token) {
-      return fail(API_ERROR_CODES.AUTH_REQUIRED, '未登录', {
-        requestId: request.headers.get('X-Request-Id') || `req_${randomUUID()}`,
-      });
+      return fail(API_ERROR_CODES.AUTH_REQUIRED, '未登录', { requestId });
     }
 
     const payload = await verifyToken(token);
     if (!payload) {
       return fail(API_ERROR_CODES.INVALID_CREDENTIALS, 'token 无效或已过期', {
-        requestId: request.headers.get('X-Request-Id') || `req_${randomUUID()}`,
+        requestId,
       });
     }
 
     const ctx: RequestContext = {
-      requestId: request.headers.get('X-Request-Id') || `req_${randomUUID()}`,
+      requestId,
       user: { id: payload.userId, email: payload.email, role: payload.role },
     };
-    return handler(ctx, input);
+    return handler(ctx, request, input);
   };
 }
 
@@ -58,13 +87,13 @@ function extractToken(request: NextRequest): string | null {
 
 export function withAdmin(handler: Handler) {
   return async (request: NextRequest, input?: unknown) => {
-    const wrapped = withAuth(async (ctx, body) => {
+    const wrapped = withAuth(async (ctx, _req, body) => {
       if (ctx.user?.role !== 'admin') {
         return fail(API_ERROR_CODES.PERMISSION_DENIED, '需要管理员角色', {
           requestId: ctx.requestId,
         });
       }
-      return handler(ctx, body);
+      return handler(ctx, _req, body);
     });
     return wrapped(request, input);
   };
@@ -75,26 +104,27 @@ export function withAdmin(handler: Handler) {
 export function withValidation<T extends z.ZodTypeAny>(schema: T) {
   return (handler: Handler<z.infer<T>>) =>
     async (request: NextRequest, input?: unknown) => {
-      const requestId = request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
+      const requestId = requestIdOf(request);
       let parsed: z.infer<T>;
       try {
-        // 如果调用方已传入 parsed body（dispatch 模式）则直接用
-        // 否则从 request 中读取 body 解析
         let body: unknown;
         if (input !== undefined) {
           body = input;
         } else {
           // 用 clone 避免后续 handler 拿不到 body
-          const text = request.method !== 'GET' && request.body
-            ? await request.clone().text()
-            : '';
+          const text =
+            request.method !== 'GET' && request.body
+              ? await request.clone().text()
+              : '';
           body = text ? JSON.parse(text) : {};
         }
         parsed = schema.parse(body);
       } catch (err) {
         if (err instanceof z.ZodError) {
           // zod v3 用 err.errors, v4 用 err.issues, 双兼容
-          const zodIssues = (err as unknown as { issues?: unknown }).issues ?? err.errors;
+          const zodIssues =
+            (err as unknown as { issues?: unknown }).issues ??
+            (err as unknown as { errors?: unknown }).errors;
           return fail(API_ERROR_CODES.INVALID_INPUT, '参数验证失败', {
             requestId,
             details: zodIssues,
@@ -105,7 +135,8 @@ export function withValidation<T extends z.ZodTypeAny>(schema: T) {
           details: { message: (err as Error).message },
         });
       }
-      return handler({ requestId, user: null }, parsed);
+      const ctx: RequestContext = { requestId, user: null };
+      return handler(ctx, request, parsed);
     };
 }
 
@@ -117,11 +148,13 @@ const RATE_LIMIT_DEFAULTS = {
   perPath: false,
 };
 
-export function withRateLimit(opts: { windowMs?: number; max?: number; perPath?: boolean } = {}) {
+export function withRateLimit(
+  opts: { windowMs?: number; max?: number; perPath?: boolean } = {}
+) {
   const config = { ...RATE_LIMIT_DEFAULTS, ...opts };
   return (handler: Handler) =>
     async (request: NextRequest, input?: unknown) => {
-      const requestId = request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
+      const requestId = requestIdOf(request);
       const ip = getClientIp(request);
       const key = `ratelimit:${ip}${config.perPath ? ':' + new URL(request.url).pathname : ''}`;
 
@@ -136,11 +169,12 @@ export function withRateLimit(opts: { windowMs?: number; max?: number; perPath?:
           });
         }
       } catch (err) {
-        // Redis 失败 → 放行（不阻塞业务）
+        // Redis 失败 → 放行（不阻塞业务，fail-open）
         console.warn('[rate-limit] redis error, allowing request', err);
       }
 
-      return handler({ requestId, user: null }, input);
+      const ctx: RequestContext = { requestId, user: null };
+      return handler(ctx, request, input);
     };
 }
 
@@ -152,7 +186,7 @@ function getClientIp(request: NextRequest): string {
   );
 }
 
-// ==================== 6. withIdempotency (防双扣) ====================
+// ==================== 6. withIdempotency (防双扣 ADR-008) ====================
 
 /**
  * per 03-L2 §10:
@@ -163,7 +197,7 @@ function getClientIp(request: NextRequest): string {
  */
 export function withIdempotency(handler: Handler) {
   return async (request: NextRequest, input?: unknown) => {
-    const requestId = request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
+    const requestId = requestIdOf(request);
     const idempotencyKey = request.headers.get('Idempotency-Key');
 
     if (!idempotencyKey) {
@@ -173,7 +207,8 @@ export function withIdempotency(handler: Handler) {
     }
 
     // 1. 读取 body 用于 hash
-    const bodyText = request.method !== 'GET' ? await request.clone().text() : '';
+    const bodyText =
+      request.method !== 'GET' ? await request.clone().text() : '';
     const requestHash = await hashString(`${idempotencyKey}:${bodyText}`);
 
     try {
@@ -188,11 +223,10 @@ export function withIdempotency(handler: Handler) {
       );
 
       if (acqRes !== 'OK') {
-        // 已存在 → 返回重复请求错误（前端应根据 Idempotency-Key 复用响应）
+        // 已存在 → 校验 hash 判断是否真重复
         const existing = await redis.get(`idem:${idempotencyKey}`);
         if (existing) {
-          const data = JSON.parse(existing);
-          // 同一 user + 同一 body 才算真重复
+          const data = JSON.parse(existing) as { requestHash: string; requestId: string };
           if (data.requestHash === requestHash) {
             return fail(API_ERROR_CODES.DUPLICATE_REQUEST, '请求重复（已处理）', {
               requestId,
@@ -209,7 +243,8 @@ export function withIdempotency(handler: Handler) {
       console.warn('[idempotency] redis error, allowing request', err);
     }
 
-    return handler({ requestId, user: null }, input);
+    const ctx: RequestContext = { requestId, user: null };
+    return handler(ctx, request, input);
   };
 }
 
@@ -218,18 +253,22 @@ export function withIdempotency(handler: Handler) {
 export function withAudit(action: string, entityType: string) {
   return (handler: Handler) =>
     async (request: NextRequest, input?: unknown) => {
-      const requestId = request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
-      const wrapped = withAuth(async (ctx, body) => {
-        const result = await handler(ctx, body);
-        // 仅 audit 成功/失败都可记录
+      const requestId = requestIdOf(request);
+      const wrapped = withAuth(async (ctx, req, body) => {
+        const result = await handler(ctx, req, body);
+        const statusCode =
+          typeof (result as Response).status === 'number'
+            ? (result as Response).status
+            : 500;
+        // 记录成功/失败
         await logAudit({
           action,
           resourceType: entityType,
-          resourceId: (body as { id?: string })?.id,
+          resourceId: (body as { id?: string } | undefined)?.id,
           actorId: ctx.user?.id,
           actorEmail: ctx.user?.email,
           actorRole: ctx.user?.role,
-          details: { requestId, ok: result.status < 400 },
+          details: { requestId, ok: statusCode < 400 },
         }).catch((e) => console.error('[audit] failed', e));
         return result;
       });
@@ -237,24 +276,18 @@ export function withAudit(action: string, entityType: string) {
     };
 }
 
-// ==================== 工具 ====================
-
-async function hashString(input: string): Promise<string> {
-  const { createHash } = await import('crypto');
-  return createHash('sha256').update(input).digest('hex');
-}
+// ==================== dispatch（L2 路由便捷入口） ====================
 
 /**
- * 给 handler 提供一个简单的 (request, input) 调用入口
- * 供 L2 route 文件使用
+ * 给 handler 提供一个简单的 (request, handler, options) 调用入口
+ * 供 L2 route 文件使用：dispatch(request, handler, { schema, auth })
  */
 export async function dispatch(
   request: NextRequest,
   handler: Handler,
   options: { schema?: z.ZodTypeAny; auth?: 'user' | 'admin' | 'none' } = {}
 ): Promise<NextResponse> {
-  const requestId = request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
-
+  const requestId = requestIdOf(request);
   const { schema, auth = 'user' } = options;
   const ctx: RequestContext = { requestId, user: null };
 
@@ -267,9 +300,12 @@ export async function dispatch(
         body = schema.parse(text ? JSON.parse(text) : {});
       } catch (err) {
         if (err instanceof z.ZodError) {
+          const zodIssues =
+            (err as unknown as { issues?: unknown }).issues ??
+            (err as unknown as { errors?: unknown }).errors;
           return fail(API_ERROR_CODES.INVALID_INPUT, '参数验证失败', {
             requestId,
-            details: err.errors,
+            details: zodIssues,
           });
         }
         return fail(API_ERROR_CODES.INVALID_INPUT, '请求体解析失败', {
@@ -291,12 +327,15 @@ export async function dispatch(
       ctx.user = { id: payload.userId, email: payload.email, role: payload.role };
 
       if (auth === 'admin' && ctx.user.role !== 'admin') {
-        return fail(API_ERROR_CODES.PERMISSION_DENIED, '需要管理员角色', { requestId });
+        return fail(API_ERROR_CODES.PERMISSION_DENIED, '需要管理员角色', {
+          requestId,
+        });
       }
     }
 
     // 3. call handler
-    return await handler(ctx, body);
+    const result = await handler(ctx, request, body);
+    return result instanceof NextResponse ? result : NextResponse.json(result);
   } catch (err) {
     console.error('[handler] error', err);
     return fail(API_ERROR_CODES.INTERNAL_ERROR, '服务器内部错误', {
@@ -305,3 +344,13 @@ export async function dispatch(
     });
   }
 }
+
+// ==================== 工具 ====================
+
+async function hashString(input: string): Promise<string> {
+  const { createHash } = await import('crypto');
+  return createHash('sha256').update(input).digest('hex');
+}
+
+// 导出类型供路由使用
+export type { ApiErrorCode };

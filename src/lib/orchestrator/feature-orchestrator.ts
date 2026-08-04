@@ -22,8 +22,13 @@ export class FeatureOrchestrator {
   ]);
   private async loadFeatureConfig(featureId: string) {
     if (db) {
-      const rows = await db.select().from(features).where(eq(features.id, featureId)).limit(1);
-      if (rows[0]) return rows[0];
+      try {
+        const rows = await db.select().from(features).where(eq(features.id, featureId)).limit(1);
+        if (rows[0]) return rows[0];
+      } catch (error) {
+        // DB 连接失败 → 退回配置层定义（fail-open，同 power-helper）
+        console.warn(`[orchestrator] DB 查询功能配置失败，使用配置兜底: ${featureId}`, error);
+      }
     }
     const definition = FEATURE_DEFINITIONS[featureId];
     return definition

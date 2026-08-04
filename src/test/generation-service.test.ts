@@ -10,7 +10,8 @@
  * （node 环境：generation-service 依赖 node:crypto）
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generationService, memoryTasks } from '@/lib/ai/application/generation-service';
+import { generationService } from '@/lib/ai/application/generation-service';
+import { memoryTasks } from '@/lib/queue/memory-task-store';
 
 // Mock 队列（避免真实 Redis/BullMQ）
 vi.mock('@/lib/queue/task-queue', () => {

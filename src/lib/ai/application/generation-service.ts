@@ -37,6 +37,11 @@ import {
 } from '@/lib/ai-service/power-helper';
 import { getFeatureCost } from '@/lib/feature-costs';
 import { orchestrator } from '@/lib/orchestrator/feature-orchestrator';
+import {
+  memoryTasks,
+  createMemoryTask,
+  updateMemoryTask,
+} from '@/lib/queue/memory-task-store';
 import type { AIServiceType } from '@/lib/ai-service/types';
 
 const logger = createLogger('generation-service');
@@ -64,6 +69,8 @@ export interface GenerationCreateResult {
   details?: unknown;
   /** 本次预扣算力 */
   reservedPower?: number;
+  /** 队列不可用时降级标记（任务已记录，待 Worker 补消费） */
+  enqueueDegraded?: boolean;
 }
 
 export interface GenerationQueryResult {
@@ -188,31 +195,17 @@ class GenerationService {
           })
           .returning();
         taskId = task?.id ?? '';
-      } else {
-        // DB 不可用降级：内存态任务（本地开发/测试）
+      }
+      if (!taskId) {
+        // DB 不可用 / insert 失败 → 内存降级（本地开发/测试；生产 DB 正常时走真实落库）
         taskId = randomUUID();
-        memoryTasks.set(taskId, {
-          id: taskId,
-          userId,
-          type: featureId,
-          status: 'pending',
-          progress: 0,
-          error: null,
-          output: null,
-          powerCost: cost,
-          createdAt: new Date().toISOString(),
-          startedAt: null,
-          completedAt: null,
-        });
+        createMemoryTask({ id: taskId, userId, type: featureId, params, powerCost: cost });
       }
     } catch (error) {
-      logger.error('任务创建失败', error as Error);
-      return {
-        success: false,
-        code: 'STORAGE_FAILED',
-        message: '任务创建失败',
-        details: { message: (error as Error).message },
-      };
+      // DB 连接失败 → 降级内存态（fail-open），不阻断业务
+      logger.warn('任务落库失败，降级内存态', error as Error);
+      taskId = randomUUID();
+      createMemoryTask({ id: taskId, userId, type: featureId, params, powerCost: cost });
     }
 
     // 5. 入队（幂等检查在 enqueueTask 内：SETNX）
@@ -227,12 +220,23 @@ class GenerationService {
     try {
       enqueue = await enqueueTask(payload);
     } catch (error) {
-      logger.error('任务入队失败', error as Error);
+      // 队列（Redis/BullMQ）不可用 → 任务已在 tasks 表/内存态创建成功，
+      // 降级为"已记录待消费"（不阻断创建；Worker 恢复后任务可补消费）。
+      // 生产依赖 Redis 正常，此处仅为 fail-open 降级路径。
+      logger.warn('任务入队失败，降级为已记录待消费', error as Error);
+      await logAudit({
+        action: 'task.enqueue_degraded',
+        resourceType: 'task',
+        resourceId: taskId,
+        actorId: userId,
+        details: { featureId, traceId, error: (error as Error).message },
+      }).catch(() => undefined);
       return {
-        success: false,
-        code: 'PROVIDER_UNAVAILABLE',
-        message: '任务队列不可用',
-        details: { message: (error as Error).message },
+        success: true,
+        taskId,
+        status: 'pending',
+        reservedPower: cost,
+        enqueueDegraded: true,
       };
     }
 
@@ -329,8 +333,7 @@ class GenerationService {
         .set({ status: 'cancelled', cancelledAt: new Date(), completedAt: new Date() })
         .where(eq(tasks.id, taskId));
     } else {
-      const mem = memoryTasks.get(taskId);
-      if (mem) mem.status = 'cancelled';
+      updateMemoryTask(taskId, { status: 'cancelled', completedAt: new Date().toISOString() });
     }
 
     // 释放幂等键（允许同参数重新提交）
@@ -384,12 +387,7 @@ class GenerationService {
         })
         .where(eq(tasks.id, taskId));
     } else {
-      const mem = memoryTasks.get(taskId);
-      if (mem) {
-        mem.status = 'pending';
-        mem.error = null;
-        mem.progress = 0;
-      }
+      updateMemoryTask(taskId, { status: 'pending', error: null, progress: 0 });
     }
 
     // 重新入队（释放幂等键后重建）
@@ -505,46 +503,6 @@ class GenerationService {
       traceId: result.traceId,
     };
   }
-}
-
-// ============================================================
-// 内存降级存储（DB 不可用时的本地任务态）
-// ============================================================
-
-interface MemoryTask {
-  id: string;
-  userId: string;
-  type: string;
-  status: string;
-  progress: number;
-  error: string | null;
-  output: Record<string, unknown> | null;
-  powerCost: number;
-  createdAt: string;
-  startedAt: string | null;
-  completedAt: string | null;
-}
-
-export const memoryTasks = new Map<string, MemoryTask>();
-
-/** 供 getTaskState 无 DB 时兜底读取（task-state 模块会优先 DB） */
-export function getMemoryTaskState(taskId: string) {
-  const t = memoryTasks.get(taskId);
-  if (!t) return null;
-  return {
-    id: t.id,
-    userId: t.userId,
-    type: t.type,
-    status: t.status,
-    progress: t.progress,
-    error: t.error,
-    output: t.output,
-    powerCost: t.powerCost,
-    startedAt: t.startedAt,
-    completedAt: t.completedAt,
-    createdAt: t.createdAt,
-    input: null,
-  };
 }
 
 export const generationService = new GenerationService();

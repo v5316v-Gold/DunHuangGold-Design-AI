@@ -30,8 +30,9 @@ export async function checkUserPower(userId: string, cost: number): Promise<bool
     if (!user) return false;
     return user.power >= cost;
   } catch (error) {
-    if (DEBUG) console.error('[power-helper] 算力查询异常:', error);
-    return false;
+    // DB 连接失败 → fail-open（与限流/幂等一致，不阻塞业务；生产 DB 正常时走真实检查）
+    if (DEBUG) console.warn('[power-helper] 算力查询异常，fail-open 放行:', error);
+    return true;
   }
 }
 

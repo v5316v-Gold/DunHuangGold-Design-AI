@@ -16,6 +16,7 @@ import { db } from '@/storage/database/db';
 import { tasks } from '@/storage/database/shared/schema';
 import { eq } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
+import { getMemoryTaskState } from '@/lib/queue/memory-task-store';
 
 const logger = createLogger('task-state');
 
@@ -152,11 +153,18 @@ export async function getTaskState(taskId: string): Promise<{
     return getMemoryTaskStateCompat(taskId);
   }
 
-  const rows = await db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.id, taskId))
-    .limit(1);
+  let rows;
+  try {
+    rows = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .limit(1);
+  } catch (error) {
+    // DB 连接失败 → 内存降级（fail-open，同 generation-service）
+    logger.warn(`任务状态查询 DB 失败，走内存降级: ${taskId}`, error);
+    return getMemoryTaskStateCompat(taskId);
+  }
 
   const row = rows[0];
   if (!row) return null;
@@ -215,25 +223,20 @@ async function updateTaskState(
 // ============================================================
 
 async function getMemoryTaskStateCompat(taskId: string) {
-  try {
-    const { getMemoryTaskState } = await import('@/lib/ai/application/generation-service');
-    const t = getMemoryTaskState(taskId);
-    if (!t) return null;
-    return {
-      id: t.id,
-      status: t.status as TaskStatusKind,
-      progress: t.progress,
-      error: t.error,
-      output: t.output,
-      startedAt: t.startedAt ? new Date(t.startedAt) : null,
-      completedAt: t.completedAt ? new Date(t.completedAt) : null,
-      createdAt: new Date(t.createdAt),
-      userId: t.userId,
-      type: t.type,
-      powerCost: t.powerCost,
-      input: null,
-    };
-  } catch {
-    return null;
-  }
+  const t = getMemoryTaskState(taskId);
+  if (!t) return null;
+  return {
+    id: t.id,
+    status: t.status as TaskStatusKind,
+    progress: t.progress,
+    error: t.error,
+    output: t.output,
+    startedAt: t.startedAt ? new Date(t.startedAt) : null,
+    completedAt: t.completedAt ? new Date(t.completedAt) : null,
+    createdAt: new Date(t.createdAt),
+    userId: t.userId,
+    type: t.type,
+    powerCost: t.powerCost,
+    input: null,
+  };
 }
