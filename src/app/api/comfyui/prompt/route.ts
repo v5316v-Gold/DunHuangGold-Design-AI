@@ -7,6 +7,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queuePrompt, waitForCompletion, getComfyUISystemInfo } from '@/lib/comfyui-service';
 import { requireAuth } from '@/lib/auth';
 import { unauthorized } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 
@@ -29,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     if (!workflow || !prompt) {
       return NextResponse.json(
-        { success: false, error: '缺少必要参数: workflow 和 prompt' },
+        {  success: false, error: '缺少必要参数: workflow 和 prompt' },
         { status: 400 }
       );
     }
@@ -41,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       return NextResponse.json(
-        { success: false, error: result.error },
+        {  success: false, error: result.error },
         { status: 500 }
       );
     }
@@ -55,7 +61,7 @@ export async function POST(request: NextRequest) {
 
       if (!completion.completed) {
         return NextResponse.json({
-          success: false,
+          requestId: reqId(), success: false,
           error: completion.error || '执行超时',
           prompt_id: result.prompt_id,
         });
@@ -64,7 +70,7 @@ export async function POST(request: NextRequest) {
       console.log('[ComfyUI] 执行完成, 图片数:', completion.images?.length);
 
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         prompt_id: result.prompt_id,
         images: completion.images,
       });
@@ -72,14 +78,14 @@ export async function POST(request: NextRequest) {
 
     // 立即返回 prompt_id
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       prompt_id: result.prompt_id,
     });
 
   } catch (error) {
     console.error('[ComfyUI] 请求处理失败:', error);
     return NextResponse.json(
-      { success: false, error: '服务器错误' },
+      {  success: false, error: '服务器错误' },
       { status: 500 }
     );
   }
@@ -95,13 +101,13 @@ export async function GET() {
     
     if (!stats || !stats.success) {
       return NextResponse.json(
-        { success: false, error: '无法连接到 ComfyUI' },
+        {  success: false, error: '无法连接到 ComfyUI' },
         { status: 503 }
       );
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       stats: {
         comfyui_version: stats.stats?.system?.comfyui_version,
         ram_total: stats.stats?.memory?.ram_total,
@@ -110,7 +116,7 @@ export async function GET() {
     });
   } catch {
     return NextResponse.json(
-      { success: false, error: '获取状态失败' },
+      {  success: false, error: '获取状态失败' },
       { status: 500 }
     );
   }

@@ -9,6 +9,12 @@ import { unlink } from 'fs/promises';
 import path from 'path';
 import { UPLOAD_DIR } from '@/lib/storage-config';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('works-id');
 
@@ -44,7 +50,7 @@ export async function GET(
       return forbidden('无权访问');
     }
 
-    return NextResponse.json({ success: true, data: work });
+    return NextResponse.json({ requestId: reqId(), success: true, data: work });
 
   } catch (error) {
     logger.error('获取失败', error);
@@ -101,7 +107,7 @@ export async function DELETE(
 
     await db!.delete(works).where(eq(works.id, id));
 
-    return NextResponse.json({ success: true, message: '删除成功' });
+    return NextResponse.json({ requestId: reqId(), success: true, message: '删除成功' });
 
   } catch (error) {
     logger.error('删除失败', error);

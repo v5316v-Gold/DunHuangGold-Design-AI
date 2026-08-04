@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/error-handler';
 import { requireAuth } from '@/lib/auth';
 import { unauthorized, badRequest, internalError } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('proxy-image');
 
@@ -84,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { success: false, error: `图片获取失败: ${response.status}` },
+        {  success: false, error: `图片获取失败: ${response.status}` },
         { status: response.status }
       );
     }

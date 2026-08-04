@@ -34,6 +34,12 @@ import { models } from '@/db/schema/_tables';
 import { requireAuth } from '@/lib/auth';
 import { logAudit } from '@/lib/audit-logger';
 import { apiSuccess, badRequest, internalError, unauthorized } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

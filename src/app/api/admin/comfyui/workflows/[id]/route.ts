@@ -11,6 +11,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/storage/database/db';
 import { comfyuiConfigs, comfyuiConnections } from '@/storage/database/shared/schema';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,9 +49,9 @@ export async function GET(
 ) {
   const payload = await getCurrentUser(request);
   if (!payload || payload.role !== 'admin') {
-    return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
   }
-  if (!db) return NextResponse.json({ success: false, error: "数据库未配置" }, { status: 503 });
+  if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: "数据库未配置" }, { status: 503 });
   const { id } = await params;
   
   try {
@@ -56,7 +62,7 @@ export async function GET(
       .limit(1);
 
     if (workflows.length === 0) {
-      return NextResponse.json({ success: false, error: '工作流不存在' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '工作流不存在' }, { status: 404 });
     }
 
     const w = workflows[0];
@@ -80,11 +86,11 @@ export async function GET(
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: mapWorkflow(w, connection),
     });
   } catch (err: unknown) {
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }
 
@@ -95,9 +101,9 @@ export async function PUT(
 ) {
   const payload = await getCurrentUser(request);
   if (!payload || payload.role !== 'admin') {
-    return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
   }
-  if (!db) return NextResponse.json({ success: false, error: "数据库未配置" }, { status: 503 });
+  if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: "数据库未配置" }, { status: 503 });
   const { id } = await params;
   
   try {
@@ -145,9 +151,9 @@ export async function PUT(
       })
       .where(eq(comfyuiConfigs.id, id));
 
-    return NextResponse.json({ success: true, message: '工作流已更新' });
+    return NextResponse.json({ requestId: reqId(), success: true, message: '工作流已更新' });
   } catch (err: unknown) {
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }
 
@@ -158,16 +164,16 @@ export async function DELETE(
 ) {
   const payload = await getCurrentUser(request);
   if (!payload || payload.role !== 'admin') {
-    return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
   }
-  if (!db) return NextResponse.json({ success: false, error: "数据库未配置" }, { status: 503 });
+  if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: "数据库未配置" }, { status: 503 });
   const { id } = await params;
   
   try {
     await db.delete(comfyuiConfigs).where(eq(comfyuiConfigs.id, id));
-    return NextResponse.json({ success: true, message: '工作流已删除' });
+    return NextResponse.json({ requestId: reqId(), success: true, message: '工作流已删除' });
   } catch (err: unknown) {
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }
 
@@ -178,9 +184,9 @@ export async function POST(
 ) {
   const payload = await getCurrentUser(request);
   if (!payload || payload.role !== 'admin') {
-    return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
   }
-  if (!db) return NextResponse.json({ success: false, error: "数据库未配置" }, { status: 503 });
+  if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: "数据库未配置" }, { status: 503 });
   const { id } = await params;
   
   try {
@@ -197,7 +203,7 @@ export async function POST(
         .where(eq(comfyuiConfigs.id, id));
 
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         message: action === 'enable' ? '工作流已启用' : '工作流已禁用' 
       });
     }
@@ -212,13 +218,13 @@ export async function POST(
         .where(eq(comfyuiConfigs.id, id));
 
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         message: enabled ? '工作流已启用' : '工作流已禁用' 
       });
     }
 
-    return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '未知操作' }, { status: 400 });
   } catch (err: unknown) {
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }

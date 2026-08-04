@@ -3,6 +3,12 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { features } from '@/db/schema/features';
 import { FEATURE_DEFINITIONS, FEATURE_LIST } from '@/config/features';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +36,7 @@ export async function GET() {
       const safeRows = rows.map(({ cost: _c, workflowId: _w, loras: _l, ...safe }) => safe);
       if (safeRows.length > 0) {
         return NextResponse.json({
-          success: true,
+          requestId: reqId(), success: true,
           data: { features: safeRows, source: 'database' },
           error: null,
           meta: {},
@@ -45,7 +51,7 @@ export async function GET() {
 
   // 2. 静态 fallback（开发环境 / DB 不可用时）
   return NextResponse.json({
-    success: true,
+    requestId: reqId(), success: true,
     data: {
       features: FEATURE_LIST.map(({ id, order }) => ({ ...FEATURE_DEFINITIONS[id], order })),
       source: 'static-fallback',

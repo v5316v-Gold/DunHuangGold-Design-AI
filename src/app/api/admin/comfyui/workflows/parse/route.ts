@@ -5,6 +5,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -145,14 +151,14 @@ function parseWorkflow(workflowJson: any): ParseResult {
 export async function POST(request: NextRequest) {
   const payload = await getCurrentUser(request);
   if (!payload || payload.role !== 'admin') {
-    return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
   }
   try {
     const body = await request.json();
     const { workflow_json } = body;
 
     if (!workflow_json) {
-      return NextResponse.json({ success: false, error: '缺少 workflow_json 参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少 workflow_json 参数' }, { status: 400 });
     }
 
     // 支持两种格式：直接的工作流 JSON 或 { "nodes": {...} } 格式
@@ -164,11 +170,11 @@ export async function POST(request: NextRequest) {
     const result = parseWorkflow(workflowData);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: result,
     });
   } catch (err: unknown) {
     // console.error('[ComfyUI Parse] 解析失败:', error);
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }

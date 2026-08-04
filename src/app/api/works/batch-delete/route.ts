@@ -12,6 +12,12 @@ import { unlink } from 'fs/promises';
 import path from 'path';
 import { UPLOAD_DIR } from '@/lib/storage-config';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('works-batch-delete');
 
@@ -22,17 +28,17 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     const body = await request.json();
     const { ids } = body;
 
     if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ success: false, error: '请提供要删除的作品ID列表' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '请提供要删除的作品ID列表' }, { status: 400 });
     }
 
-    if (!db) return NextResponse.json({ success: false, error: '数据库连接失败' }, { status: 500 });
+    if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: '数据库连接失败' }, { status: 500 });
 
     const isAdmin = user.role === 'admin';
 
@@ -41,13 +47,13 @@ export async function POST(request: NextRequest) {
       .where(inArray(works.id, ids));
 
     if (worksToDelete.length === 0) {
-      return NextResponse.json({ success: false, error: '没有找到要删除的作品' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '没有找到要删除的作品' }, { status: 404 });
     }
 
     if (!isAdmin) {
       const unauthorized = worksToDelete.filter(a => a.userId !== user.userId);
       if (unauthorized.length > 0) {
-        return NextResponse.json({ success: false, error: '无权删除部分作品' }, { status: 403 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '无权删除部分作品' }, { status: 403 });
       }
     }
 
@@ -75,20 +81,20 @@ export async function POST(request: NextRequest) {
     logger.info('批量删除完成', { userId: user.userId, deletedCount: ids.length });
 
     return NextResponse.json({ 
-      success: true, 
+      requestId: reqId(), success: true, 
       message: `成功删除 ${ids.length} 个作品`,
       deletedCount: ids.length,
     });
 
   } catch (error) {
     logger.error('批量删除失败', error);
-    return NextResponse.json({ success: false, error: '批量删除失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '批量删除失败' }, { status: 500 });
   }
 }
 
 export async function GET() {
   return NextResponse.json(
-    {
+    { 
       error: '此路由已废弃，请使用 POST /api/works',
       deprecated: true,
       migration: 'POST /api/works with { ids: string[] } in body',

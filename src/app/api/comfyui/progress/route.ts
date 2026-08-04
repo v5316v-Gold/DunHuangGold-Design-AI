@@ -13,6 +13,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const COMFYUI_HOST = process.env.COMFYUI_HOST || 'http://localhost:8188';
 const POLL_INTERVAL_MS = 500;
@@ -26,7 +32,7 @@ export async function GET(request: NextRequest) {
   const promptId = searchParams.get('prompt_id');
 
   if (!promptId) {
-    return NextResponse.json({ error: '缺少 prompt_id 参数' }, { status: 400 });
+    return NextResponse.json({ requestId: reqId(), error: '缺少 prompt_id 参数' }, { status: 400 });
   }
 
   const encoder = new TextEncoder();

@@ -13,6 +13,12 @@ import { db } from '@/db';
 import { promptRules } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { sanitizeError } from '@/lib/validators';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,11 +28,11 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     if (!db) {
       // console.error('[rules] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const { searchParams } = new URL(request.url);
@@ -41,7 +47,7 @@ export async function GET(request: NextRequest) {
     const rules = await query;
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: rules.map(rule => ({
         id: rule.id,
         category: rule.category,
@@ -55,7 +61,7 @@ export async function GET(request: NextRequest) {
   } catch (err: unknown) {
     // console.error('[rules] 获取规则失败:', error);
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: sanitizeError(err, '获取规则失败').message,
     }, { status: 500 });
   }
@@ -66,17 +72,17 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     if (!db) {
       // console.error('[rules] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const { id, category, name, systemPrompt, enabled = true, sortOrder = 0 } = await request.json();
 
     if (!id || !category || !name || !systemPrompt) {
-      return NextResponse.json({ success: false, error: '缺少必要参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少必要参数' }, { status: 400 });
     }
 
     await db.insert(promptRules).values({
@@ -88,12 +94,12 @@ export async function POST(request: NextRequest) {
       sortOrder,
     });
 
-    return NextResponse.json({ success: true, message: '规则创建成功' });
+    return NextResponse.json({ requestId: reqId(), success: true, message: '规则创建成功' });
 
   } catch (err: unknown) {
     // console.error('[rules] 创建规则失败:', error);
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: sanitizeError(err, '创建规则失败').message,
     }, { status: 500 });
   }
@@ -104,17 +110,17 @@ export async function PUT(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     if (!db) {
       // console.error('[rules] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const { id, name, systemPrompt, enabled, sortOrder } = await request.json();
 
     if (!id) {
-      return NextResponse.json({ success: false, error: '缺少规则ID' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少规则ID' }, { status: 400 });
     }
 
     const updates: any = {};
@@ -126,12 +132,12 @@ export async function PUT(request: NextRequest) {
 
     await db.update(promptRules).set(updates).where(eq(promptRules.id, id));
 
-    return NextResponse.json({ success: true, message: '规则更新成功' });
+    return NextResponse.json({ requestId: reqId(), success: true, message: '规则更新成功' });
 
   } catch (err: unknown) {
     // console.error('[rules] 更新规则失败:', error);
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: sanitizeError(err, '更新规则失败').message,
     }, { status: 500 });
   }
@@ -142,28 +148,28 @@ export async function DELETE(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     if (!db) {
       // console.error('[rules] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ success: false, error: '缺少规则ID' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少规则ID' }, { status: 400 });
     }
 
     await db.delete(promptRules).where(eq(promptRules.id, id));
 
-    return NextResponse.json({ success: true, message: '规则删除成功' });
+    return NextResponse.json({ requestId: reqId(), success: true, message: '规则删除成功' });
 
   } catch (err: unknown) {
     // console.error('[rules] 删除规则失败:', error);
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: sanitizeError(err, '删除规则失败').message,
     }, { status: 500 });
   }

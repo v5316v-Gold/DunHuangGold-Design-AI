@@ -8,6 +8,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { DrizzleLoraManager } from '@/lib/ai-gateway/adapters/lora-db';
 import { unauthorized, notFound } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,13 +47,13 @@ export async function POST(
     await mgr.setEnabled(id, newEnabled);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       id,
       enabled: newEnabled,
     });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : '切换失败' },
+      {  error: err instanceof Error ? err.message : '切换失败' },
       { status: 500 }
     );
   }

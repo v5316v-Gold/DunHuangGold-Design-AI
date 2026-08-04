@@ -12,6 +12,12 @@ import { requireAuth } from '@/lib/auth';
 import { unauthorized } from '@/lib/api-response';
 import { pgTable, uuid, varchar, integer, jsonb, boolean, text, timestamp } from 'drizzle-orm/pg-core';
 import type { AIServiceType } from '@/lib/ai-service/types';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,7 +57,7 @@ export async function GET(request: NextRequest) {
     const serviceType = searchParams.get('service') as AIServiceType | null;
 
     if (!db) {
-      return NextResponse.json({ error: 'DB 不可用' }, { status: 503 });
+      return NextResponse.json({ requestId: reqId(), error: 'DB 不可用' }, { status: 503 });
     }
 
     if (serviceType) {
@@ -63,7 +69,7 @@ export async function GET(request: NextRequest) {
         .orderBy(desc(workflowTemplates.version));
 
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         serviceType,
         count: rows.length,
         templates: rows.map((r) => ({
@@ -83,7 +89,7 @@ export async function GET(request: NextRequest) {
     const enabled = await wm.listEnabled();
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       count: enabled.length,
       templates: enabled.map((w) => ({
         id: w.id,
@@ -95,7 +101,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : '查询失败' },
+      {  error: err instanceof Error ? err.message : '查询失败' },
       { status: 500 }
     );
   }
@@ -121,7 +127,7 @@ export async function POST(request: NextRequest) {
 
   try {
     if (!db) {
-      return NextResponse.json({ error: 'DB 不可用' }, { status: 503 });
+      return NextResponse.json({ requestId: reqId(), error: 'DB 不可用' }, { status: 503 });
     }
 
     const body = await request.json();
@@ -129,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     if (!name || !serviceType || !workflowJson) {
       return NextResponse.json(
-        { error: '缺少必填字段: name / serviceType / workflowJson' },
+        {  error: '缺少必填字段: name / serviceType / workflowJson' },
         { status: 400 }
       );
     }
@@ -145,12 +151,12 @@ export async function POST(request: NextRequest) {
     }).returning();
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       template: created,
     });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : '创建失败' },
+      {  error: err instanceof Error ? err.message : '创建失败' },
       { status: 500 }
     );
   }

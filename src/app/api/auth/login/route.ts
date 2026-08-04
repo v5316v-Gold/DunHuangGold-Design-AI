@@ -4,6 +4,12 @@ import { db, users } from '@/storage/database/db';
 import { memoryDb } from '@/storage/database/memory-db';
 import { eq } from 'drizzle-orm';
 import { rateLimit, getClientIP, AUTH_LIMIT, rateLimitResponse } from '@/lib/rate-limit';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 /**
  * 用户登录
@@ -15,7 +21,7 @@ export async function POST(request: NextRequest) {
   const ip = getClientIP(request);
   const rl = await rateLimit(ip, AUTH_LIMIT);
   if (!rl.success) return rateLimitResponse(rl);
-  if (!db) return NextResponse.json({ success: false, error: "数据库未配置" }, { status: 503 });
+  if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: "数据库未配置" }, { status: 503 });
   try {
     const body = await request.json();
     const { email, password } = body;
@@ -23,7 +29,7 @@ export async function POST(request: NextRequest) {
     // 参数验证
     if (!email || !password) {
       return NextResponse.json(
-        { error: '邮箱和密码为必填项' },
+        {  error: '邮箱和密码为必填项' },
         { status: 400 }
       );
     }
@@ -56,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: '邮箱或密码错误' },
+        {  error: '邮箱或密码错误' },
         { status: 401 }
       );
     }
@@ -65,7 +71,7 @@ export async function POST(request: NextRequest) {
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) {
       return NextResponse.json(
-        { error: '邮箱或密码错误' },
+        {  error: '邮箱或密码错误' },
         { status: 401 }
       );
     }
@@ -79,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     // 返回用户信息（不含密码）
     const response = NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         user: {
           id: user.id,
@@ -109,7 +115,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('登录错误:', error);
     return NextResponse.json(
-      { error: '服务器错误，请稍后重试' },
+      {  error: '服务器错误，请稍后重试' },
       { status: 500 }
     );
   }

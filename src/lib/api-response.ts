@@ -17,17 +17,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeError } from './validators';
 
+// 全局 crypto.randomUUID（Node 18+/Next 运行时可用；避免 CJS interop 问题）
+function uuid(): string {
+  return (globalThis.crypto?.randomUUID?.() ?? `uuid-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+}
+
+/** 生成/复用 requestId（优先 X-Request-Id 头，缺省生成） */
+export function resolveRequestId(request?: NextRequest): string {
+  if (request) {
+    const fromHeader = request.headers.get('X-Request-Id');
+    if (fromHeader) return fromHeader;
+  }
+  return `req_${uuid()}`;
+}
+
 // ==================== 成功响应 ====================
 
 export function apiSuccess<T = unknown>(
   data: T,
-  extra: Record<string, unknown> = {}
+  extra: Record<string, unknown> = {},
+  request?: NextRequest
 ): NextResponse {
-  return NextResponse.json({ success: true, data, ...extra });
+  return NextResponse.json({
+    success: true,
+    data,
+    requestId: resolveRequestId(request),
+    ...extra,
+  });
 }
 
-export function apiSuccessRaw(body: Record<string, unknown>): NextResponse {
-  return NextResponse.json({ success: true, ...body });
+export function apiSuccessRaw(
+  body: Record<string, unknown>,
+  request?: NextRequest
+): NextResponse {
+  return NextResponse.json({ success: true, requestId: resolveRequestId(request), ...body });
 }
 
 // ==================== 错误响应 ====================
@@ -60,36 +83,38 @@ export function apiError(
   message = '服务器内部错误',
   status: 400 | 401 | 403 | 404 | 500 | 502 | 503 = 500,
   code?: ApiErrorCode,
-  details?: unknown
+  details?: unknown,
+  request?: NextRequest
 ): NextResponse {
   const body: ApiError = { success: false, error: message };
   if (code) body.code = code;
   if (details !== undefined) body.details = details;
+  (body as unknown as Record<string, unknown>).requestId = resolveRequestId(request);
   return NextResponse.json(body, { status });
 }
 
 // ==================== 快捷错误响应 ====================
 
-export const unauthorized = (message = '请先登录') =>
-  apiError(message, 401, 'UNAUTHORIZED');
+export const unauthorized = (message = '请先登录', request?: NextRequest) =>
+  apiError(message, 401, 'UNAUTHORIZED', undefined, request);
 
-export const forbidden = (message = '无权限访问') =>
-  apiError(message, 403, 'FORBIDDEN');
+export const forbidden = (message = '无权限访问', request?: NextRequest) =>
+  apiError(message, 403, 'FORBIDDEN', undefined, request);
 
-export const notFound = (message = '资源不存在') =>
-  apiError(message, 404, 'NOT_FOUND');
+export const notFound = (message = '资源不存在', request?: NextRequest) =>
+  apiError(message, 404, 'NOT_FOUND', undefined, request);
 
-export const badRequest = (message: string, details?: unknown) =>
-  apiError(message, 400, 'VALIDATION_ERROR', details);
+export const badRequest = (message: string, details?: unknown, request?: NextRequest) =>
+  apiError(message, 400, 'VALIDATION_ERROR', details, request);
 
-export const internalError = (error: unknown, fallback = '服务器内部错误') =>
-  apiError(sanitizeError(error, fallback).message, 500, 'INTERNAL_ERROR');
+export const internalError = (error: unknown, fallback = '服务器内部错误', request?: NextRequest) =>
+  apiError(sanitizeError(error, fallback).message, 500, 'INTERNAL_ERROR', undefined, request);
 
-export const serviceUnavailable = (message = '服务暂时不可用') =>
-  apiError(message, 503, 'SERVICE_UNAVAILABLE');
+export const serviceUnavailable = (message = '服务暂时不可用', request?: NextRequest) =>
+  apiError(message, 503, 'SERVICE_UNAVAILABLE', undefined, request);
 
-export const insufficientPower = (message = '算力不足') =>
-  apiError(message, 400, 'POWER_INSUFFICIENT');
+export const insufficientPower = (message = '算力不足', request?: NextRequest) =>
+  apiError(message, 400, 'POWER_INSUFFICIENT', undefined, request);
 
 // ==================== 捕获处理器（用于 try/catch） ====================
 

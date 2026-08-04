@@ -11,6 +11,12 @@ import { LocalLLMConfig, getDefaultLocalLLMConfig } from '@/config/api-settings'
 import { db, schema } from '@/db';
 import { eq } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 const logger = createLogger('settings-llm');
@@ -24,7 +30,7 @@ export async function GET(request: NextRequest) {
   try {
     if (!db) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: '数据库未连接',
       }, { status: 500 });
     }
@@ -51,13 +57,13 @@ export async function GET(request: NextRequest) {
     }
     
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: llmConfig,
     });
   } catch (err: unknown) {
     logger.error('获取LLM配置失败:');
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: (err instanceof Error ? err.message : String(err)),
     }, { status: 500 });
   }
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
   try {
     if (!db) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: '数据库未连接',
       }, { status: 500 });
     }
@@ -80,7 +86,7 @@ export async function POST(request: NextRequest) {
     
     if (!config) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: '缺少 config 参数',
       }, { status: 400 });
     }
@@ -118,13 +124,13 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: mergedConfig,
     });
   } catch (err: unknown) {
     logger.error('保存LLM配置失败:');
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: (err instanceof Error ? err.message : String(err)),
     }, { status: 500 });
   }
@@ -141,7 +147,7 @@ export async function PUT(request: NextRequest) {
     
     if (action !== 'test') {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: '未知操作',
       }, { status: 400 });
     }
@@ -189,7 +195,7 @@ export async function PUT(request: NextRequest) {
       if (response.ok) {
         const models = await response.json();
         return NextResponse.json({
-          success: true,
+          requestId: reqId(), success: true,
           data: {
             connected: true,
             models: models.models || [],
@@ -197,20 +203,20 @@ export async function PUT(request: NextRequest) {
         });
       } else {
         return NextResponse.json({
-          success: false,
+          requestId: reqId(), success: false,
           error: `连接失败: ${response.status}`,
         });
       }
     } catch (err: unknown) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: `无法连接到 ${baseUrl}: ${(err instanceof Error ? err.message : String(err))}`,
       });
     }
   } catch (err: unknown) {
     logger.error('测试LLM连接失败:');
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: (err instanceof Error ? err.message : String(err)),
     }, { status: 500 });
   }

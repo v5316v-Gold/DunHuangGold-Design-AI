@@ -13,6 +13,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { systemSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +53,7 @@ export async function GET(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     if (!db) {
@@ -57,7 +63,7 @@ export async function GET(request: NextRequest) {
         name: val.name,
         cost: val.cost,
       }));
-      return NextResponse.json({ success: true, data: { features: costs } });
+      return NextResponse.json({ requestId: reqId(), success: true, data: { features: costs } });
     }
 
     // 从数据库加载配置
@@ -88,11 +94,11 @@ export async function GET(request: NextRequest) {
       cost: typeof val === 'object' ? val.cost : parseInt(String(val)) || DEFAULT_FEATURE_COSTS[feature]?.cost || 10,
     }));
 
-    return NextResponse.json({ success: true, data: { features: costs } });
+    return NextResponse.json({ requestId: reqId(), success: true, data: { features: costs } });
 
   } catch (error) {
     console.error('[admin/feature-costs] GET 失败:', error);
-    return NextResponse.json({ success: false, error: '获取失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取失败' }, { status: 500 });
   }
 }
 
@@ -105,14 +111,14 @@ export async function PUT(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     const body = await request.json();
     const { features } = body;
 
     if (!features || typeof features !== 'object') {
-      return NextResponse.json({ success: false, error: '参数错误' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '参数错误' }, { status: 400 });
     }
 
     // 验证和格式化配置
@@ -120,7 +126,7 @@ export async function PUT(request: NextRequest) {
     for (const [key, val] of Object.entries(features)) {
       const cost = parseInt(String(val));
       if (isNaN(cost) || cost < 0) {
-        return NextResponse.json({ success: false, error: `功能 ${key} 算力值无效` }, { status: 400 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: `功能 ${key} 算力值无效` }, { status: 400 });
       }
       newCosts[key] = {
         name: DEFAULT_FEATURE_COSTS[key]?.name || key,
@@ -149,10 +155,10 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, data: { features: Object.entries(newCosts).map(([f, v]) => ({ feature: f, ...v })) } });
+    return NextResponse.json({ requestId: reqId(), success: true, data: { features: Object.entries(newCosts).map(([f, v]) => ({ feature: f, ...v })) } });
 
   } catch (error) {
     console.error('[admin/feature-costs] PUT 失败:', error);
-    return NextResponse.json({ success: false, error: '保存失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '保存失败' }, { status: 500 });
   }
 }

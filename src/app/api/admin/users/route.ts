@@ -6,6 +6,12 @@ import { desc, like, or, sql } from 'drizzle-orm';
 
 // 导入共享的模拟用户余额（用于开发模式）
 import { getMockUserBalance } from './mock-data';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 /**
@@ -49,7 +55,7 @@ export async function GET(request: NextRequest) {
       ];
       
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: {
           users: baseMockUsers,
           pagination: {
@@ -65,7 +71,7 @@ export async function GET(request: NextRequest) {
 
     // 生产环境权限检查
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     // 构建查询条件
@@ -112,7 +118,7 @@ export async function GET(request: NextRequest) {
     const total = Number(countResult[0]?.count || 0);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         users: userList.map(u => ({
           ...u,
@@ -129,6 +135,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('获取用户列表失败:', error);
-    return NextResponse.json({ success: false, error: '服务器错误' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '服务器错误' }, { status: 500 });
   }
 }

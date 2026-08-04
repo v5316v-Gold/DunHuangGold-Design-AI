@@ -9,6 +9,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/storage/database/db';
 import { comfyuiConfigs, comfyuiConnections } from '@/storage/database/shared/schema';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,9 +44,9 @@ function mapWorkflow(w: typeof comfyuiConfigs.$inferSelect, connection: any = nu
 export async function GET(request: NextRequest) {
   const payload = await getCurrentUser(request);
   if (!payload || payload.role !== 'admin') {
-    return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
   }
-  if (!db) return NextResponse.json({ success: false, error: "数据库未配置" }, { status: 503 });
+  if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: "数据库未配置" }, { status: 503 });
   try {
     const { searchParams } = new URL(request.url);
     const featureId = searchParams.get('featureId');
@@ -63,15 +69,15 @@ export async function GET(request: NextRequest) {
       return mapWorkflow(w, conn ? { id: conn.id, name: conn.name, host: conn.host, port: conn.port } : null);
     });
 
-    return NextResponse.json({ success: true, data: result });
+    return NextResponse.json({ requestId: reqId(), success: true, data: result });
   } catch (err: unknown) {
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }
 
 // 创建/更新工作流
 export async function POST(request: NextRequest) {
-  if (!db) return NextResponse.json({ success: false, error: "数据库未配置" }, { status: 503 });
+  if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: "数据库未配置" }, { status: 503 });
   try {
     const body = await request.json();
     const {
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!id || !featureId) {
-      return NextResponse.json({ success: false, error: '缺少必填参数 id 或 featureId' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少必填参数 id 或 featureId' }, { status: 400 });
     }
 
     if (isDefault) {
@@ -121,7 +127,7 @@ export async function POST(request: NextRequest) {
         })
         .where(eq(comfyuiConfigs.id, id));
 
-      return NextResponse.json({ success: true, message: '工作流已更新' });
+      return NextResponse.json({ requestId: reqId(), success: true, message: '工作流已更新' });
     } else {
       await db.insert(comfyuiConfigs).values({
         id,
@@ -137,9 +143,9 @@ export async function POST(request: NextRequest) {
         executionCount: 0,
       });
 
-      return NextResponse.json({ success: true, message: '工作流已创建' });
+      return NextResponse.json({ requestId: reqId(), success: true, message: '工作流已创建' });
     }
   } catch (err: unknown) {
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }

@@ -24,6 +24,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { workflows } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 const COMFYUI_HOST = 'http://localhost:8188';
@@ -212,14 +218,14 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload) {
-      return NextResponse.json({ success: false, error: '请先登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '请先登录' }, { status: 401 });
     }
 
     const body: PromptRequest = await request.json();
     const { workflowId, prompt, inputImage, params } = body;
 
     if (!workflowId || !prompt) {
-      return NextResponse.json({ success: false, error: '缺少必要参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少必要参数' }, { status: 400 });
     }
 
     // 获取工作流配置
@@ -237,7 +243,7 @@ export async function POST(request: NextRequest) {
     // 如果没有配置工作流，返回错误
     if (!workflowConfig || !workflowConfig.workflowJson || Object.keys(workflowConfig.workflowJson).length === 0) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: `工作流 ${workflowId} 未配置，请先在管理后台添加工作流`
       }, { status: 400 });
     }
@@ -263,14 +269,14 @@ export async function POST(request: NextRequest) {
     const result = await waitForCompletion(submitResult.prompt_id, comfyuiHost);
 
     return NextResponse.json({
-      success: result.completed,
+      requestId: reqId(), success: result.completed,
       prompt_id: submitResult.prompt_id,
       images: result.images,
       error: result.error,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '执行工作流失败';
-    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: errorMessage }, { status: 500 });
   }
 }
 
@@ -294,7 +300,7 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json({
-        online: false,
+        requestId: reqId(), online: false,
         error: `连接失败: ${response.status}`
       });
     }
@@ -302,13 +308,13 @@ export async function GET(request: NextRequest) {
     const stats = await response.json();
 
     return NextResponse.json({
-      online: true,
+      requestId: reqId(), online: true,
       version: stats.system?.comfyui_version,
       gpu: stats.devices?.[0]?.name,
     });
   } catch (error) {
     return NextResponse.json({
-      online: false,
+      requestId: reqId(), online: false,
       error: error instanceof Error ? error.message : '连接失败'
     });
   }

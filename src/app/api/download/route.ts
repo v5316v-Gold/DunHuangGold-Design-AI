@@ -5,6 +5,12 @@ import path from 'path';
 import { UPLOAD_DIR, FILE_TYPE_DIRS } from '@/lib/storage-config';
 import { requireAuth } from '@/lib/auth';
 import { unauthorized } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,22 +28,22 @@ export async function GET(request: NextRequest) {
     const filename = searchParams.get('filename');
 
     if (!type || !filename) {
-      return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少参数' }, { status: 400 });
     }
 
     // 安全检查：防止路径遍历攻击
     if (!validTypes.has(type as any)) {
-      return NextResponse.json({ success: false, error: '无效的文件类型' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '无效的文件类型' }, { status: 400 });
     }
 
     if (filename.includes('..') || type.includes('..')) {
-      return NextResponse.json({ success: false, error: '无效的文件路径' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '无效的文件路径' }, { status: 400 });
     }
 
     const filepath = path.join(UPLOAD_DIR, type, filename);
 
     if (!existsSync(filepath)) {
-      return NextResponse.json({ success: false, error: '文件不存在' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '文件不存在' }, { status: 404 });
     }
 
     const buffer = readFileSync(filepath);
@@ -62,6 +68,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('[download] 错误:', error);
-    return NextResponse.json({ success: false, error: '获取文件失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取文件失败' }, { status: 500 });
   }
 }

@@ -11,6 +11,12 @@ import { comfyuiConnections } from '@/storage/database/shared/schema';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth';
 import { unauthorized } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -87,10 +93,10 @@ export async function GET(request: NextRequest) {
       }));
     }
 
-    return NextResponse.json({ success: true, data: connections });
+    return NextResponse.json({ requestId: reqId(), success: true, data: connections });
   } catch (err: unknown) {
     console.error('[ComfyUI Connections] GET错误:', err);
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }
 
@@ -106,7 +112,7 @@ export async function POST(request: NextRequest) {
     const { id, name, host, port, authToken, enabled, isDefault, priority, timeout } = body;
 
     if (!id || !name || !host) {
-      return NextResponse.json({ success: false, error: '缺少必填参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少必填参数' }, { status: 400 });
     }
 
     const record = {
@@ -173,9 +179,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, message: '连接已保存' });
+    return NextResponse.json({ requestId: reqId(), success: true, message: '连接已保存' });
   } catch (err: unknown) {
     console.error('[ComfyUI Connections] POST错误:', err);
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }

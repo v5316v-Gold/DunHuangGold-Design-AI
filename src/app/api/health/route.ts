@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 /**
  * 健康检查端点
@@ -31,8 +37,7 @@ export async function GET() {
     health.checks = { ...health.checks as object, db: 'unknown' };
   }
 
-  return NextResponse.json(health, {
-    status: 200,
+  return NextResponse.json(health, { status: 200,
     headers: {
       'Cache-Control': 'no-store',
     },

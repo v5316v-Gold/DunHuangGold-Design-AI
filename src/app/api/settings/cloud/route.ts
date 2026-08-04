@@ -14,6 +14,12 @@ import { FEATURE_DEFINITIONS, getFeature } from '@/config/features';
 import { CloudApiConfig, CloudConnection, CloudProvider, getDefaultCloudConfig, getDefaultCloudConnection } from '@/config/api-settings';
 import { db, schema } from '@/db';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 const CLOUD_CONFIGS_KEY = 'cloud_configs';
@@ -26,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   try {
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
 
     // 获取连接列表
@@ -64,7 +70,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         connections,
         featureConfigs,
@@ -72,7 +78,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err: unknown) {
     // console.error('获取云端配置失败:', error);
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }
 
@@ -83,7 +89,7 @@ export async function POST(request: NextRequest) {
 
   try {
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
 
     const body = await request.json();
@@ -92,7 +98,7 @@ export async function POST(request: NextRequest) {
     if (body.action === 'saveConnection') {
       const { connection } = body;
       if (!connection?.id) {
-        return NextResponse.json({ success: false, error: '缺少 connection.id' }, { status: 400 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '缺少 connection.id' }, { status: 400 });
       }
 
       const connResult = await db
@@ -125,14 +131,14 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ success: true, data: connections[connection.id] });
+      return NextResponse.json({ requestId: reqId(), success: true, data: connections[connection.id] });
     }
 
     // ---- 删除连接 ----
     if (body.action === 'deleteConnection') {
       const { connectionId } = body;
       if (!connectionId) {
-        return NextResponse.json({ success: false, error: '缺少 connectionId' }, { status: 400 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '缺少 connectionId' }, { status: 400 });
       }
 
       const connResult = await db
@@ -149,18 +155,18 @@ export async function POST(request: NextRequest) {
           .where(eq(schema.systemSettings.key, CLOUD_CONNECTIONS_KEY));
       }
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ requestId: reqId(), success: true });
     }
 
     // ---- 保存功能配置（兼容旧逻辑）----
     const { featureId, config } = body;
     if (!featureId || !config) {
-      return NextResponse.json({ success: false, error: '缺少 featureId 或 config 参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少 featureId 或 config 参数' }, { status: 400 });
     }
 
     const feature = getFeature(featureId);
     if (!feature) {
-      return NextResponse.json({ success: false, error: `功能不存在: ${featureId}` }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: `功能不存在: ${featureId}` }, { status: 400 });
     }
 
     const configsResult = await db
@@ -193,9 +199,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, data: cloudConfigs[featureId] });
+    return NextResponse.json({ requestId: reqId(), success: true, data: cloudConfigs[featureId] });
   } catch (err: unknown) {
     // console.error('保存云端配置失败:', error);
-    return NextResponse.json({ success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: (err instanceof Error ? err.message : String(err)) }, { status: 500 });
   }
 }

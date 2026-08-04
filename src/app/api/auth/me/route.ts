@@ -3,6 +3,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db, users } from '@/storage/database/db';
 import { memoryDb } from '@/storage/database/memory-db';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 /**
  * 获取当前用户信息
@@ -13,7 +19,7 @@ import { eq } from 'drizzle-orm';
 export async function GET(request: NextRequest) {
   const payload = await getCurrentUser(request);
   if (!payload) {
-    return NextResponse.json({ success: false, data: null, error: '未登录' }, { status: 401 });
+    return NextResponse.json({ requestId: reqId(), success: false, data: null, error: '未登录' }, { status: 401 });
   }
 
   // 优先 PostgreSQL，失败时回退 memoryDb（与 login 路由一致）
@@ -33,7 +39,7 @@ export async function GET(request: NextRequest) {
         .where(eq(users.id, payload.userId))
         .limit(1);
       if (userList[0]) {
-        return NextResponse.json({ success: true, data: userList[0], error: null });
+        return NextResponse.json({ requestId: reqId(), success: true, data: userList[0], error: null });
       }
     }
   } catch (err) {
@@ -43,10 +49,10 @@ export async function GET(request: NextRequest) {
   // memoryDb 兜底
   const memUser = await memoryDb.users.findById(payload.userId);
   if (!memUser) {
-    return NextResponse.json({ success: false, data: null, error: '用户不存在' }, { status: 404 });
+    return NextResponse.json({ requestId: reqId(), success: false, data: null, error: '用户不存在' }, { status: 404 });
   }
   return NextResponse.json({
-    success: true,
+    requestId: reqId(), success: true,
     data: {
       id: memUser.id,
       email: memUser.email,

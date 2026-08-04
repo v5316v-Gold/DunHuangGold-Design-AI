@@ -16,6 +16,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getFeatureCost } from '@/lib/feature-costs';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,7 +42,7 @@ export async function POST(request: NextRequest) {
     // 1. 鉴权
     const payload = await getCurrentUser(request);
     if (!payload) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({requestId: reqId(),  success: false, error: '未登录' }, { status: 401 });
     }
 
     // 2. 解析 body
@@ -44,18 +50,18 @@ export async function POST(request: NextRequest) {
     try {
       body = (await request.json()) as TryOnRequest;
     } catch {
-      return NextResponse.json({ success: false, error: '请求体 JSON 解析失败' }, { status: 400 });
+      return NextResponse.json({requestId: reqId(),  success: false, error: '请求体 JSON 解析失败' }, { status: 400 });
     }
 
     const images = body.referenceImages || [];
     if (images.length === 0) {
       return NextResponse.json(
-        { success: false, error: '请至少上传一张参考图片' },
+        {requestId: reqId(),  success: false, error: '请至少上传一张参考图片' },
         { status: 400 }
       );
     }
     if (images.length > 16) {
-      return NextResponse.json({ success: false, error: '参考图片最多 16 张' }, { status: 400 });
+      return NextResponse.json({requestId: reqId(),  success: false, error: '参考图片最多 16 张' }, { status: 400 });
     }
 
     const cost = getFeatureCost('tryon');
@@ -64,7 +70,7 @@ export async function POST(request: NextRequest) {
     //    这里返回 taskId + pending,前端轮询 /api/tasks/[id] 拿结果。
     const taskId = crypto.randomUUID();
 
-    return NextResponse.json({
+    return NextResponse.json({requestId: reqId(), 
       success: true,
       data: {
         taskId,
@@ -81,7 +87,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[tryon] 处理失败:', error);
     return NextResponse.json(
-      {
+      {requestId: reqId(), 
         success: false,
         error: error instanceof Error ? error.message : '服务器错误',
       },
@@ -92,7 +98,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json(
-    {
+    {requestId: reqId(), 
       success: false,
       error: '请使用 POST 方法调用 /api/tryon',
       hint: '参考 src/components/workspace/TryOnEffect.tsx',

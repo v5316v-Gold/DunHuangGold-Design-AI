@@ -26,6 +26,12 @@ import {
 } from '@/lib/comfyui-service';
 import { getWorkflowConfig, isWorkflowConfigured, workflowConfigs } from '@/config/comfyui-workflows';
 import { unauthorized, badRequest, serviceUnavailable, internalError } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 // Action 处理器映射
 const actionHandlers: Record<string, (params: any) => Promise<any>> = {
@@ -79,7 +85,7 @@ export async function POST(request: NextRequest) {
     const handler = actionHandlers[action];
     if (!handler) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: `未知的 action: ${action}`,
         availableActions: Object.keys(actionHandlers),
       }, { status: 400 });
@@ -90,11 +96,11 @@ export async function POST(request: NextRequest) {
 
     // 统一响应格式
     if (action === 'health' || action === 'isConfigured') {
-      return NextResponse.json({ success: true, data: result });
+      return NextResponse.json({ requestId: reqId(), success: true, data: result });
     }
 
     if (action === 'getWorkflowConfig' || action === 'listConfigured' || action === 'queueStatus' || action === 'systemInfo') {
-      return NextResponse.json({ success: true, data: result });
+      return NextResponse.json({ requestId: reqId(), success: true, data: result });
     }
 
     // 返回生成结果
@@ -110,7 +116,7 @@ export async function GET(request: NextRequest) {
   if (!user) return unauthorized();
   // 返回可用操作列表
   return NextResponse.json({
-    success: true,
+    requestId: reqId(), success: true,
     availableActions: Object.keys(actionHandlers),
     workflowFeatures: [
       'text2img',

@@ -14,6 +14,12 @@ import { db } from '@/db';
 import { powerLogs, users } from '@/db/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('stats');
 
@@ -27,11 +33,11 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401, headers: { 'X-Deprecated-Source': 'stats' } });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401, headers: { 'X-Deprecated-Source': 'stats' } });
     }
 
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500, headers: { 'X-Deprecated-Source': 'stats' } });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500, headers: { 'X-Deprecated-Source': 'stats' } });
     }
 
     // 获取用户信息
@@ -45,7 +51,7 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (!userResult || userResult.length === 0) {
-      return NextResponse.json({ success: false, error: '用户不存在' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '用户不存在' }, { status: 404 });
     }
 
     const userInfo = userResult[0];
@@ -123,7 +129,7 @@ export async function GET(request: NextRequest) {
       .groupBy(powerLogs.type);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         user: {
           nickname: userInfo.nickname,
@@ -156,6 +162,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     logger.error('获取统计信息失败', error);
-    return NextResponse.json({ success: false, error: '获取失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取失败' }, { status: 500 });
   }
 }
