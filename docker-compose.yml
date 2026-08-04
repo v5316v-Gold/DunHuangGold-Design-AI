@@ -15,7 +15,8 @@ name: dunhuang-ai
 services:
   # ===== PostgreSQL =====
   postgres:
-    image: postgres:18-alpine
+    # 用 1Panel 已有的 postgres:18.4-alpine（避免重新拉取 + 与现有 volume 兼容）
+    image: postgres:18.4-alpine
     container_name: dunhuang-postgres
     restart: unless-stopped
     environment:
@@ -23,7 +24,8 @@ services:
       POSTGRES_PASSWORD: dunhuang2026
       POSTGRES_DB: dunhuang
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # PG 18+ 推荐挂到 /var/lib/postgresql（容器自己管 subdir），不要直挂 data 子目录
+      - postgres_data:/var/lib/postgresql
       - ./src/db/migrations:/docker-entrypoint-initdb.d:ro
     ports:
       # 不暴露 5432 到 host（仅内部网络）
@@ -40,7 +42,8 @@ services:
   # ===== Redis =====
   redis:
     image: redis:7-alpine
-    container_name: dunhuang-redis
+    # 原 dunhuang-redis 与 1Panel 容器同名冲突 → 用 compose 后缀区分（不影响服务名 redis）
+    container_name: dunhuang-redis-compose
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
