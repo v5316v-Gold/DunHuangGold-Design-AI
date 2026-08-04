@@ -25,12 +25,32 @@ const logger = createLogger('task-state');
 // ============================================================
 
 export type TaskStatusKind =
+  | 'queued'       // 已创建，等待入队确认（Phase 4.4 新增）
   | 'pending'      // 已入队，等待 Worker
   | 'processing'   // Worker 正在处理
   | 'completed'    // 成功完成
   | 'failed'       // 失败（可重试）
   | 'dead_letter'  // 重试 3 次仍失败
   | 'cancelled';   // 用户取消
+
+/**
+ * 状态流转白名单（Phase 4.4 强制）
+ * 非法流转直接拒绝，保证状态机一致性（ADR-011）
+ */
+export const ALLOWED_TRANSITIONS: Record<TaskStatusKind, TaskStatusKind[]> = {
+  queued: ['pending', 'cancelled'],
+  pending: ['processing', 'cancelled', 'failed'],
+  processing: ['completed', 'failed', 'cancelled'],
+  completed: [],
+  failed: ['processing', 'pending', 'dead_letter', 'cancelled'],
+  dead_letter: ['pending', 'cancelled'],  // 允许人工重试
+  cancelled: [],
+};
+
+/** 校验状态流转是否合法 */
+export function canTransition(from: TaskStatusKind, to: TaskStatusKind): boolean {
+  return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
+}
 
 export interface TaskStatusUpdate {
   status: TaskStatusKind;
@@ -196,6 +216,19 @@ async function updateTaskState(
   if (!db) {
     logger.warn(`DB 不可用，状态变更失败: ${taskId}`);
     return;
+  }
+
+  // Phase 4.4 · 状态机强制：非法流转直接拒绝（ADR-011）
+  const current = await getTaskState(taskId);
+  if (current) {
+    const from = current.status;
+    const to = update.status;
+    if (!canTransition(from, to)) {
+      logger.warn(
+        `非法状态流转被拒绝: ${taskId} ${from} -> ${to}（白名单: ${ALLOWED_TRANSITIONS[from]?.join(', ') ?? '无'}）`
+      );
+      return;
+    }
   }
 
   const now = new Date();
