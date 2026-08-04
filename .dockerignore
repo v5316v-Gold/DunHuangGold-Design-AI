@@ -1,0 +1,35 @@
+# 敦煌金 AI · Docker 构建排除（Phase 9.8）
+# 防止本地 node_modules / 构建产物 / 敏感文件打进镜像
+
+# 依赖与构建产物
+node_modules
+.next
+out
+dist
+dist-workers
+tsconfig.tsbuildinfo
+.pnpm-store
+
+# 环境与密钥（严禁进镜像）
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+backups
+
+# 测试与文档
+coverage
+docs
+spike
+*.md
+!README.md
+
+# Git / IDE / 系统
+.git
+.gitignore
+.idea
+.vscode
+*.log
+.DS_Store
+Thumbs.db

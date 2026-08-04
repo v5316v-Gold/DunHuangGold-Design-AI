@@ -52,27 +52,46 @@ export function encryptSecret(plain: string): { ciphertext: string; fingerprint:
   };
 }
 
-/** 解密 API Key */
+/**
+ * 解密 API Key —— 支持密钥轮换窗口期回退
+ *
+ * 轮换方案（双 key 窗口）：
+ * 1. 加密永远用主 key（API_KEY_ENCRYPTION_KEY）
+ * 2. 解密先试主 key；失败（旧数据）再试旧 key（API_KEY_ENCRYPTION_KEY_PREVIOUS）
+ * 3. 窗口期内旧数据可读；全部 re-encrypt 后可移除 PREVIOUS
+ */
 export function decryptSecret(stored: string): string | null {
-  const key = getEncryptionKey();
-  if (!key) return null;
-  try {
-    const [encB64, ivB64, tagB64] = stored.split(':');
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      key,
-      Buffer.from(ivB64, 'base64')
-    );
-    decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
-    const dec = Buffer.concat([
-      decipher.update(Buffer.from(encB64, 'base64')),
-      decipher.final(),
-    ]);
-    return dec.toString('utf8');
-  } catch (error) {
-    logger.error('凭据解密失败（密钥不匹配或数据损坏）', error);
-    return null;
+  const candidates = [
+    getEncryptionKey(),
+    (() => {
+      const prev = process.env.API_KEY_ENCRYPTION_KEY_PREVIOUS;
+      return prev ? Buffer.from(prev, 'hex') : null;
+    })(),
+  ].filter((k): k is Buffer => k !== null);
+
+  if (candidates.length === 0) return null;
+
+  for (const key of candidates) {
+    try {
+      const [encB64, ivB64, tagB64] = stored.split(':');
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        key,
+        Buffer.from(ivB64, 'base64')
+      );
+      decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+      const dec = Buffer.concat([
+        decipher.update(Buffer.from(encB64, 'base64')),
+        decipher.final(),
+      ]);
+      return dec.toString('utf8');
+    } catch (error) {
+      // 主 key 失败 → 试 PREVIOUS；全部失败 → 返回 null
+      continue;
+    }
   }
+  logger.error('凭据解密失败（主/旧密钥均不匹配或数据损坏）');
+  return null;
 }
 
 // ==================== Repository ====================
