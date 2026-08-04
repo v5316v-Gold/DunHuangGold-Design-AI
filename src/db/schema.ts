@@ -11,6 +11,8 @@
 export * from './schema/_tables';
 export * from './schema/features';
 export * from './schema/power-reservations';
+export * from './schema/workflow-versions';
+export * from './schema/providers';
 
 // ==================== 关系定义 ====================
 import { relations } from 'drizzle-orm';
