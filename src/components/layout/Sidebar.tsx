@@ -25,37 +25,36 @@ import {
   X,
   Lock,
   AlertCircle,
-  Shield,
-  LogOut,
-  LogIn,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useFeatures, useCurrentUser, type PublicFeature } from '@/lib/use-features';
+import { useFeatures, type PublicFeature } from '@/lib/use-features';
 import { isFeatureRegistered } from '@/lib/feature-registry';
 
-// 把 lucide 图标名映射到组件（前端必备）
+// 把 feature_id 映射到 lucide 图标（小写 key）
+// 之前错误地写为 ES6 shorthand: { Mountain } -> key="Mountain"
+// 修复后：{ relief: Mountain } -> key="relief"
 const ICON_MAP: Record<string, LucideIcon> = {
-  Mountain,
-  Box,
-  Layers,
-  MessageSquare,
-  Image,
-  Sparkles,
-  Blend,
-  Wand2,
-  Grid3X3,
-  PenTool,
-  Palette,
-  Video,
-  Film,
-  Eraser,
-  Maximize2,
-  Droplet,
-  Shirt,
+  relief: Mountain,
+  image3d: Box,
+  '2dto3d': Layers,
+  dialogue: MessageSquare,
+  text2img: Image,
+  refine: Sparkles,
+  blend: Blend,
+  oneclick: Wand2,
+  multiview: Grid3X3,
+  sketch: PenTool,
+  free: Palette,
+  text2video: Video,
+  img2video: Film,
+  removebg: Eraser,
+  upscale: Maximize2,
+  watermark: Droplet,
+  tryon: Shirt,
 };
 
-// 把 feature id 映射到静态 label（兜底：如果 /api/features 没返回 label）
+// 把 feature_id 映射到中文标签（fallback）
 const LABEL_MAP: Record<string, string> = {
   relief: '图转浮雕图',
   image3d: '图转3D模型',
@@ -76,7 +75,28 @@ const LABEL_MAP: Record<string, string> = {
   tryon: '佩戴效果',
 };
 
-// 把 feature id 映射到显示分组（前端兜底）
+// kebab-case（/api/features 返回）→ 短 id（feature-registry/组件层）归一化
+// 与 src/lib/api-service.ts 的 featureIdAliases 对齐，并补齐其缺失项
+const FEATURE_ID_ALIAS: Record<string, string> = {
+  'image-3d': 'image3d',
+  stereo: '2dto3d',
+  'product-refine': 'refine',
+  'multi-image': 'blend',
+  'one-click-design': 'oneclick',
+  'multi-view': 'multiview',
+  'sketch-realistic': 'sketch',
+  'free-creation': 'free',
+  image2video: 'img2video',
+  'remove-background': 'removebg',
+  'remove-watermark': 'watermark',
+  'ai-chat': 'dialogue',
+};
+
+function normalizeFeatureId(id: string): string {
+  return FEATURE_ID_ALIAS[id] || id;
+}
+
+// 把 feature_id 映射到显示分组（前端兜底）
 function getDisplayGroup(id: string): string {
   if (['relief', 'image3d', '2dto3d'].includes(id)) return '浮雕圆雕';
   if (['text2video', 'img2video'].includes(id)) return '生成视频';
@@ -86,11 +106,13 @@ function getDisplayGroup(id: string): string {
 
 // 按 feature id 排序的菜单分组构造
 function buildMenuGroups(features: PublicFeature[]) {
-  // 只保留: 有 id + 组件已注册 + 未禁用 的功能
+  // 只保留: 有 id + 组件已注册（归一化后）+ 未禁用 的功能
   // （isFeatureRegistered 保证 Sidebar 与 WorkspacePanel 用同一套 feature_code）
-  const enabled = features.filter(
-    (f) => f.id && isFeatureRegistered(f.id) && f.enabled !== false
-  );
+  const enabled = features
+    .map((f) => ({ ...f, id: normalizeFeatureId(f.id) }))
+    .filter(
+      (f) => f.id && isFeatureRegistered(f.id) && f.enabled !== false
+    );
   const groups: Record<string, PublicFeature[]> = {};
   for (const f of enabled) {
     const group = getDisplayGroup(f.id);
@@ -114,20 +136,16 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activePanel, onPanelChange, onNavigate }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [hovering, setHovering] = useState(false);
-
   // 🔑 L1: 从配置驱动的 hooks（不再硬编码）
-  const { features: featureList } = useFeatures();
-  const currentUser = useCurrentUser();
-  const isAdmin = currentUser?.role === 'admin';
-
+  const { features, loading } = useFeatures();
   // menuGroups 现在从 /api/features 动态计算（保持原视觉）
-  const menuGroups = buildMenuGroups(featureList);
+  const menuGroups = buildMenuGroups(features);
   const [featuresStatus, setFeaturesStatus] = useState<
     Record<string, { enabled: boolean; reason?: string }>
   >({});
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   // 响应式：检测屏幕宽度（防抖）
   useEffect(() => {
@@ -160,7 +178,7 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
 
         if (result.success) {
           const status: Record<string, { enabled: boolean; reason?: string }> = {};
-          Object.keys(result.data).forEach((featureId) => {
+          Object.keys(result.data).forEach(featureId => {
             status[featureId] = {
               enabled: result.data[featureId].enabled,
               reason: result.data[featureId].reason,
@@ -284,7 +302,7 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
 
         {/* Menu Groups */}
         <div className="flex-1 overflow-y-auto py-3 scrollbar-thin">
-          {menuGroups.map((group, groupIndex) => (
+          {!loading && menuGroups.map((group, groupIndex) => (
             <div key={group.title} className="mb-3">
               {isExpanded && (
                 <div
@@ -304,7 +322,8 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
                   // 🔑 L1: 配置驱动的 label/icon 查找
                   const label = item.name || LABEL_MAP[item.id] || item.id;
                   const labelEn = (item.id || '').toUpperCase();
-                  const Icon = ICON_MAP[item.icon || ''] || Sparkles;
+                  // 🔧 修复：之前 ICON_MAP key 错误（大写变量名），现在用真实小写 id 查
+                  const Icon = ICON_MAP[item.id] || Sparkles;
                   const isActive = activePanel === item.id;
                   const featureStatus = featuresStatus[item.id];
                   // 未加载时默认启用，避免首屏所有功能都显示为锁定
@@ -324,12 +343,8 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
                             : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]/50 hover:text-[var(--text-primary)]'
                           : 'text-[var(--text-dim)] cursor-not-allowed opacity-50'
                       )}
-                      style={{ animationDelay: `${groupIndex * 50 + itemIndex * 30}ms` }}
-                      title={
-                        !isExpanded
-                          ? `${label}${!isEnabled ? ` (${featureStatus.reason})` : ''}`
-                          : undefined
-                      }
+                      style={{ animationDelay: `${(groupIndex * 50) + (itemIndex * 30)}ms` }}
+                      title={!isExpanded ? `${label}${!isEnabled ? ` (${featureStatus.reason})` : ''}` : undefined}
                     >
                       {/* 活动指示器 - 金色光效 */}
                       {isActive && isEnabled && (
@@ -340,14 +355,15 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
                         </>
                       )}
 
-                      <div
-                        className={cn(
-                          'relative z-10 flex-shrink-0 transition-all duration-200',
-                          isEnabled &&
-                            (isActive ? 'text-[var(--gold)]' : 'group-hover:text-[var(--gold)]')
+                      <div className={cn(
+                        'relative z-10 flex-shrink-0 transition-all duration-200',
+                        isEnabled && (isActive ? 'text-[var(--gold)]' : 'group-hover:text-[var(--gold)]')
+                      )}>
+                        {!isEnabled ? (
+                          <Lock className="w-5 h-5" />
+                        ) : (
+                          <Icon className="w-5 h-5" />
                         )}
-                      >
-                        {!isEnabled ? <Lock className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                       </div>
 
                       {isExpanded && (
@@ -362,9 +378,7 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
                             className={cn(
                               'text-[9px] tracking-wider uppercase transition-colors truncate',
                               isEnabled
-                                ? isActive
-                                  ? 'text-[var(--gold)] opacity-70'
-                                  : 'text-[var(--text-dim)] group-hover:text-[var(--text-muted)]'
+                                ? (isActive ? 'text-[var(--gold)] opacity-70' : 'text-[var(--text-dim)] group-hover:text-[var(--text-muted)]')
                                 : 'text-[var(--text-dim)]'
                             )}
                           >
@@ -390,108 +404,18 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
           {/* 顶部金色装饰线 */}
           <div className="mx-4 h-[1px] bg-gradient-to-r from-transparent via-[var(--border-color)] to-transparent mb-3" />
 
-          {/* 🔑 L1: 用户角色入口（按角色过滤显示） */}
-          <div className="flex flex-col gap-0.5 px-2 pb-3">
-            {/* 作品展示入口（所有登录用户） */}
-            {currentUser && (
-              <button
-                onClick={() =>
-                  onNavigate ? onNavigate('/gallery') : window.location.assign('/gallery')
-                }
-                className={cn(
-                  'relative flex items-center gap-3 rounded-lg transition-all duration-200 text-left',
-                  isExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center',
-                  'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]/50 hover:text-[var(--text-primary)]'
-                )}
-                title={!isExpanded ? '作品展示' : undefined}
-              >
-                <Image className="w-4 h-4" />
-                {isExpanded && <span className="text-sm">作品展示</span>}
-              </button>
-            )}
-
-            {/* 个人中心入口（所有登录用户） */}
-            {currentUser && (
-              <button
-                onClick={() =>
-                  onNavigate ? onNavigate('/profile') : window.location.assign('/profile')
-                }
-                className={cn(
-                  'relative flex items-center gap-3 rounded-lg transition-all duration-200 text-left',
-                  isExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center',
-                  'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]/50 hover:text-[var(--text-primary)]'
-                )}
-                title={!isExpanded ? '个人中心' : undefined}
-              >
-                <Box className="w-4 h-4" />
-                {isExpanded && <span className="text-sm">个人中心</span>}
-              </button>
-            )}
-
-            {/* 🔑 L1: 管理后台入口（仅 admin 可见） */}
-            {isAdmin && (
-              <button
-                onClick={() =>
-                  onNavigate ? onNavigate('/admin') : window.location.assign('/admin')
-                }
-                className={cn(
-                  'relative flex items-center gap-3 rounded-lg transition-all duration-200 text-left',
-                  isExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center',
-                  'text-[var(--gold)] bg-[var(--gold-muted)]/40 hover:bg-[var(--gold-muted)] border border-[var(--gold-border)]'
-                )}
-                title={!isExpanded ? '管理后台' : undefined}
-              >
-                <Shield className="w-4 h-4" />
-                {isExpanded && <span className="text-sm font-medium">管理后台</span>}
-              </button>
-            )}
-
-            {/* 登录/退出按钮 */}
-            {currentUser ? (
-              <button
-                onClick={() => {
-                  if (typeof window !== 'undefined') localStorage.removeItem('dunhuang_token');
-                  window.location.assign('/login');
-                }}
-                className={cn(
-                  'relative flex items-center gap-3 rounded-lg transition-all duration-200 text-left',
-                  isExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center',
-                  'text-[var(--text-dim)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]/30'
-                )}
-                title={!isExpanded ? '退出登录' : undefined}
-              >
-                <LogOut className="w-4 h-4" />
-                {isExpanded && <span className="text-sm">退出登录</span>}
-              </button>
-            ) : (
-              <button
-                onClick={() => window.location.assign('/login')}
-                className={cn(
-                  'relative flex items-center gap-3 rounded-lg transition-all duration-200 text-left',
-                  isExpanded ? 'px-3 py-2' : 'px-0 py-2 justify-center',
-                  'text-[var(--gold)] hover:bg-[var(--gold-muted)]/40'
-                )}
-                title={!isExpanded ? '登录' : undefined}
-              >
-                <LogIn className="w-4 h-4" />
-                {isExpanded && <span className="text-sm">登录</span>}
-              </button>
-            )}
-          </div>
-
           {/* 底部状态区域 */}
           <div className="px-4 py-4">
-            <div className={cn('flex items-center gap-2 text-xs', !isExpanded && 'justify-center')}>
+            <div className={cn(
+              'flex items-center gap-2 text-xs',
+              !isExpanded && 'justify-center'
+            )}>
               {isExpanded ? (
                 <>
                   {/* 敦煌卷草纹装饰 */}
                   <svg viewBox="0 0 24 24" className="w-4 h-4 text-[var(--gold)] opacity-60">
-                    <path
-                      d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z"
-                      fill="currentColor"
-                      opacity="0.3"
-                    />
-                    <circle cx="12" cy="12" r="3" fill="currentColor" />
+                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z" fill="currentColor" opacity="0.3"/>
+                    <circle cx="12" cy="12" r="3" fill="currentColor"/>
                   </svg>
                   <span className="text-[var(--text-dim)]">系统运行正常</span>
                   <div className="ml-auto flex items-center gap-1.5">

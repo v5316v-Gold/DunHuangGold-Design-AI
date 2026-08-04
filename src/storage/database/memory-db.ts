@@ -56,7 +56,7 @@ const store: MemoryStore = {
     id: 'admin-default',
     email: 'admin@dunhuang.com',
     nickname: '管理员',
-    passwordHash: '$2b$10$K.0H7S.4W.h8Y3L5Z1Y0XeJxz3U9Q6XwvJvmGKQ3W6N5H5R5Q5Q5.', // admin123
+    passwordHash: '$2b$10$zYYqAxQnedGk67d/3LadZuRgk5bYVhDD77ROp/Z5HWv9H6eoxZqoi', // admin123
     role: 'admin',
     power: 999999,
     createdAt: new Date(),
