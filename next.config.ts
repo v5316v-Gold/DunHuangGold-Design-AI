@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Phase 9.8 · standalone 输出（镜像瘦身 347MB → ~50MB）
+  output: 'standalone',
+
   // ESLint 检查（构建时也检查）
   eslint: { ignoreDuringBuilds: false },
 

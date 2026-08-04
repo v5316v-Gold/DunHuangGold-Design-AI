@@ -86,3 +86,6 @@ docs/_temp/
 # Worker 构建产物
 dist-workers/
 dunhuang-6-commits.patch
+
+# Backups (runtime artifacts)
+backups/

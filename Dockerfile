@@ -1,78 +1,47 @@
-# 敦煌金 AI 设计平台 - Dockerfile
-# 多阶段构建，优化镜像大小
+# 敦煌金 AI 设计平台 - Dockerfile (Phase 9.8 standalone)
+# 多阶段构建：standalone 输出 → 镜像 ~50MB（原 347MB）
 
 # 阶段1: 依赖安装
 FROM node:20-alpine AS deps
 WORKDIR /app
-
-# 安装 pnpm
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
-
-# 复制 package 文件
 COPY package.json pnpm-lock.yaml ./
-
-# 安装依赖
 RUN pnpm install --frozen-lockfile
 
-# 阶段2: 构建
+# 阶段2: 构建 (standalone)
 FROM node:20-alpine AS builder
 WORKDIR /app
-
-# 安装 pnpm
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
-
-# 复制依赖
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# 设置环境变量
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV COZE_PROJECT_ENV=PROD
-
-# 编译自定义服务器（ts -> js 输出到 dist/server.js）
-RUN pnpm exec tsc src/server.ts --outDir dist --esModuleInterop --target ES2020 --module commonjs --moduleResolution node --skipLibCheck
-
-# 构建 Next.js 应用
+# 生产构建（含 standalone 输出，.next/standalone）
 RUN pnpm build
 
-# 阶段3: 运行
+# 阶段3: 运行 (仅 standalone)
 FROM node:20-alpine AS runner
 WORKDIR /app
-
-# 设置环境变量
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV COZE_PROJECT_ENV=PROD
 ENV PORT=5000
 
-# 环境变量全部由 docker-compose environment 注入（镜像内不包含任何 .env 文件）
-# 所需变量: DATABASE_URL / REDIS_URL / JWT_SECRET / MINIMAX_API_KEY / QWEN_API_KEY 等
+# 非 root 用户
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# 创建非 root 用户
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# 复制 Next.js 构建产物
-COPY --from=builder /app/.next ./.next
+# 复制 standalone 输出（只含生产必需文件）
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-# 复制已编译的自定义服务器
-COPY --from=builder /app/dist ./dist
-
-# 复制依赖和 package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-
-# 设置权限
-RUN chown -R nextjs:nodejs /app
+# 上传目录（可挂载 volume）
+RUN mkdir -p /app/uploads && chown -R nextjs:nodejs /app
 
 USER nextjs
-
 EXPOSE 5000
 
 # 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/ || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:5000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" || exit 1
 
-# 启动命令
-CMD ["node", "dist/server.js"]
+# standalone 启动
+CMD ["node", "server.js"]

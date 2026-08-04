@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-08-04T14:20:53.663Z",
+  "base": "http://localhost:5000",
+  "concurrency": 20,
+  "total": 200,
+  "okCount": 200,
+  "failCount": 0,
+  "totalMs": 1020,
+  "throughputRps": 196.078431372549,
+  "okRps": 196.078431372549,
+  "p50Ms": 71,
+  "p95Ms": 356,
+  "p99Ms": 369
+}
