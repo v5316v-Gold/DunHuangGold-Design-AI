@@ -1,7 +1,8 @@
 /**
  * Phase 7.2 · useTaskPolling Hook 单测
  *
- * 运行：npx vitest run --config vitest.node.config.ts src/test/use-task-polling.test.ts
+ * 运行：npx vitest run src/test/use-task-polling.test.ts
+ * 注意：renderHook 需要 DOM 环境 → 使用主 vitest.config.ts（jsdom + react plugin）
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
