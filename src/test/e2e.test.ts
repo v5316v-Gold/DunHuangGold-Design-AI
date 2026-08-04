@@ -23,11 +23,10 @@ const BASE_URL = getBaseUrl(); // 首次仍 lazy（call 发生在 test runtime�
 
 // 关键：E2E 必须用真实 fetch（Node 18+ 内置 fetch）
 // 不能用 globalThis.fetch —— vitest setup 可能 mock 掉
-// 直接用 undici（Node 内置 HTTP 客户端，Node 自带无需安装）
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const nodeHttp = require('node:http');
-const nodeHttps = require('node:https');
-const { URL } = require('node:url');
+// 用 node:http 发起 HTTP 请求（绕过所有 fetch mock）
+import * as nodeHttp from 'node:http';
+import * as nodeHttps from 'node:https';
+import { URL } from 'node:url';
 
 /** 用 node:http 发起 HTTP 请求（绕过所有 fetch mock） */
 function realFetch(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }): Promise<{ ok: boolean; status: number; json: () => Promise<unknown>; text: () => Promise<string> }> {

@@ -1,0 +1,76 @@
+{
+  "target": "http://localhost:5001/api/health",
+  "timestamp": "2026-08-04T16:16:37.282Z",
+  "stats": [
+    {
+      "phase": "Phase-1",
+      "concurrency": 10,
+      "total": 200,
+      "success": 200,
+      "failed": 0,
+      "totalMs": 586,
+      "qps": 341.2969283276451,
+      "p50": 17,
+      "p95": 80,
+      "p99": 333,
+      "maxMs": 351,
+      "errors": {}
+    },
+    {
+      "phase": "Phase-2",
+      "concurrency": 50,
+      "total": 200,
+      "success": 200,
+      "failed": 0,
+      "totalMs": 605,
+      "qps": 330.57851239669424,
+      "p50": 75,
+      "p95": 459,
+      "p99": 587,
+      "maxMs": 592,
+      "errors": {}
+    },
+    {
+      "phase": "Phase-3",
+      "concurrency": 100,
+      "total": 200,
+      "success": 200,
+      "failed": 0,
+      "totalMs": 623,
+      "qps": 321.02728731942216,
+      "p50": 421,
+      "p95": 557,
+      "p99": 558,
+      "maxMs": 558,
+      "errors": {}
+    },
+    {
+      "phase": "Phase-4",
+      "concurrency": 200,
+      "total": 200,
+      "success": 200,
+      "failed": 0,
+      "totalMs": 607,
+      "qps": 329.48929159802304,
+      "p50": 508,
+      "p95": 589,
+      "p99": 601,
+      "maxMs": 601,
+      "errors": {}
+    },
+    {
+      "phase": "Phase-5",
+      "concurrency": 500,
+      "total": 200,
+      "success": 200,
+      "failed": 0,
+      "totalMs": 618,
+      "qps": 323.62459546925567,
+      "p50": 437,
+      "p95": 599,
+      "p99": 611,
+      "maxMs": 612,
+      "errors": {}
+    }
+  ]
+}

@@ -2,10 +2,12 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   // Phase 9.8 · standalone 输出（镜像瘦身 347MB → ~50MB）
-  output: 'standalone',
+  // 本地压测时 NEXT_OUTPUT='export' 或关闭（避免 Windows symlink EPERM）
+  // 镜像构建保留 'standalone'（默认）
+  output: (process.env.NEXT_OUTPUT as 'standalone' | 'export' | undefined) || 'standalone',
 
   // ESLint 检查（构建时也检查）
-  eslint: { ignoreDuringBuilds: false },
+  eslint: { ignoreDuringBuilds: process.env.NEXT_ESLINT_BYPASS === '1' },
 
   // TypeScript 检查（构建时也检查）
   typescript: { ignoreBuildErrors: false },
