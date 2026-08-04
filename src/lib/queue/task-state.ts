@@ -144,8 +144,13 @@ export async function getTaskState(taskId: string): Promise<{
   createdAt: Date;
   userId: string;
   type: string;
+  powerCost: number;
+  input: Record<string, unknown> | null;
 } | null> {
-  if (!db) return null;
+  if (!db) {
+    // DB 不可用 → 内存降级（Phase 3: generation-service 的 memoryTasks）
+    return getMemoryTaskStateCompat(taskId);
+  }
 
   const rows = await db
     .select()
@@ -167,6 +172,8 @@ export async function getTaskState(taskId: string): Promise<{
     createdAt: row.createdAt,
     userId: row.userId,
     type: row.type,
+    powerCost: row.powerCost ?? 0,
+    input: (row.input as Record<string, unknown>) ?? null,
   };
 }
 
@@ -200,4 +207,33 @@ async function updateTaskState(
   }
 
   await db.update(tasks).set(setFields).where(eq(tasks.id, taskId));
+}
+
+
+// ============================================================
+// DB 不可用时的内存降级（Phase 3）
+// ============================================================
+
+async function getMemoryTaskStateCompat(taskId: string) {
+  try {
+    const { getMemoryTaskState } = await import('@/lib/ai/application/generation-service');
+    const t = getMemoryTaskState(taskId);
+    if (!t) return null;
+    return {
+      id: t.id,
+      status: t.status as TaskStatusKind,
+      progress: t.progress,
+      error: t.error,
+      output: t.output,
+      startedAt: t.startedAt ? new Date(t.startedAt) : null,
+      completedAt: t.completedAt ? new Date(t.completedAt) : null,
+      createdAt: new Date(t.createdAt),
+      userId: t.userId,
+      type: t.type,
+      powerCost: t.powerCost,
+      input: null,
+    };
+  } catch {
+    return null;
+  }
 }
