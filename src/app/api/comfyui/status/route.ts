@@ -4,6 +4,12 @@
 
 import { NextResponse } from 'next/server';
 import { getComfyUISystemInfo } from '@/lib/comfyui-service';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 
@@ -17,13 +23,13 @@ export async function GET() {
     
     if (!stats || !stats.success) {
       return NextResponse.json({
-        online: false,
+        requestId: reqId(), online: false,
         error: '无法连接到 ComfyUI'
       }, { status: 503 });
     }
 
     return NextResponse.json({
-      online: true,
+      requestId: reqId(), online: true,
       version: stats.stats?.system?.comfyui_version,
       ram: {
         total: Math.round((stats.stats?.memory?.ram_total || 0) / 1024 / 1024 / 1024 * 100) / 100,
@@ -33,7 +39,7 @@ export async function GET() {
 
   } catch (error) {
     return NextResponse.json({
-      online: false,
+      requestId: reqId(), online: false,
       error: error instanceof Error ? error.message : '检查失败'
     }, { status: 500 });
   }

@@ -16,6 +16,7 @@ import { db } from '@/storage/database/db';
 import { tasks } from '@/storage/database/shared/schema';
 import { eq } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
+import { getMemoryTaskState } from '@/lib/queue/memory-task-store';
 
 const logger = createLogger('task-state');
 
@@ -24,12 +25,32 @@ const logger = createLogger('task-state');
 // ============================================================
 
 export type TaskStatusKind =
+  | 'queued'       // 已创建，等待入队确认（Phase 4.4 新增）
   | 'pending'      // 已入队，等待 Worker
   | 'processing'   // Worker 正在处理
   | 'completed'    // 成功完成
   | 'failed'       // 失败（可重试）
   | 'dead_letter'  // 重试 3 次仍失败
   | 'cancelled';   // 用户取消
+
+/**
+ * 状态流转白名单（Phase 4.4 强制）
+ * 非法流转直接拒绝，保证状态机一致性（ADR-011）
+ */
+export const ALLOWED_TRANSITIONS: Record<TaskStatusKind, TaskStatusKind[]> = {
+  queued: ['pending', 'cancelled'],
+  pending: ['processing', 'cancelled', 'failed'],
+  processing: ['completed', 'failed', 'cancelled'],
+  completed: [],
+  failed: ['processing', 'pending', 'dead_letter', 'cancelled'],
+  dead_letter: ['pending', 'cancelled'],  // 允许人工重试
+  cancelled: [],
+};
+
+/** 校验状态流转是否合法 */
+export function canTransition(from: TaskStatusKind, to: TaskStatusKind): boolean {
+  return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
+}
 
 export interface TaskStatusUpdate {
   status: TaskStatusKind;
@@ -144,14 +165,26 @@ export async function getTaskState(taskId: string): Promise<{
   createdAt: Date;
   userId: string;
   type: string;
+  powerCost: number;
+  input: Record<string, unknown> | null;
 } | null> {
-  if (!db) return null;
+  if (!db) {
+    // DB 不可用 → 内存降级（Phase 3: generation-service 的 memoryTasks）
+    return getMemoryTaskStateCompat(taskId);
+  }
 
-  const rows = await db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.id, taskId))
-    .limit(1);
+  let rows;
+  try {
+    rows = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .limit(1);
+  } catch (error) {
+    // DB 连接失败 → 内存降级（fail-open，同 generation-service）
+    logger.warn(`任务状态查询 DB 失败，走内存降级: ${taskId}`, error);
+    return getMemoryTaskStateCompat(taskId);
+  }
 
   const row = rows[0];
   if (!row) return null;
@@ -167,6 +200,8 @@ export async function getTaskState(taskId: string): Promise<{
     createdAt: row.createdAt,
     userId: row.userId,
     type: row.type,
+    powerCost: row.powerCost ?? 0,
+    input: (row.input as Record<string, unknown>) ?? null,
   };
 }
 
@@ -181,6 +216,19 @@ async function updateTaskState(
   if (!db) {
     logger.warn(`DB 不可用，状态变更失败: ${taskId}`);
     return;
+  }
+
+  // Phase 4.4 · 状态机强制：非法流转直接拒绝（ADR-011）
+  const current = await getTaskState(taskId);
+  if (current) {
+    const from = current.status;
+    const to = update.status;
+    if (!canTransition(from, to)) {
+      logger.warn(
+        `非法状态流转被拒绝: ${taskId} ${from} -> ${to}（白名单: ${ALLOWED_TRANSITIONS[from]?.join(', ') ?? '无'}）`
+      );
+      return;
+    }
   }
 
   const now = new Date();
@@ -200,4 +248,28 @@ async function updateTaskState(
   }
 
   await db.update(tasks).set(setFields).where(eq(tasks.id, taskId));
+}
+
+
+// ============================================================
+// DB 不可用时的内存降级（Phase 3）
+// ============================================================
+
+async function getMemoryTaskStateCompat(taskId: string) {
+  const t = getMemoryTaskState(taskId);
+  if (!t) return null;
+  return {
+    id: t.id,
+    status: t.status as TaskStatusKind,
+    progress: t.progress,
+    error: t.error,
+    output: t.output,
+    startedAt: t.startedAt ? new Date(t.startedAt) : null,
+    completedAt: t.completedAt ? new Date(t.completedAt) : null,
+    createdAt: new Date(t.createdAt),
+    userId: t.userId,
+    type: t.type,
+    powerCost: t.powerCost,
+    input: null,
+  };
 }

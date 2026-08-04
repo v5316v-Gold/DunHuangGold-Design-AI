@@ -13,6 +13,12 @@ import { db } from '@/db';
 import { translateSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { sanitizeError } from '@/lib/validators';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,11 +28,11 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     if (!db) {
       // console.error('[translate-settings] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const result = await db.select().from(translateSettings).where(eq(translateSettings.id, 'default')).limit(1);
@@ -43,7 +49,7 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         preserveNewline: settings.preserveNewline,
         removeRedundantDots: settings.removeRedundantDots,
@@ -58,7 +64,7 @@ export async function GET(request: NextRequest) {
   } catch (err: unknown) {
     // console.error('[translate-settings] 获取设置失败:', error);
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: sanitizeError(err, '获取设置失败').message,
     }, { status: 500 });
   }
@@ -69,11 +75,11 @@ export async function PUT(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     if (!db) {
       // console.error('[translate-settings] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const updates = await request.json();
@@ -101,12 +107,12 @@ export async function PUT(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, message: '设置更新成功' });
+    return NextResponse.json({ requestId: reqId(), success: true, message: '设置更新成功' });
 
   } catch (err: unknown) {
     // console.error('[translate-settings] 更新设置失败:', error);
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: sanitizeError(err, '更新设置失败').message,
     }, { status: 500 });
   }

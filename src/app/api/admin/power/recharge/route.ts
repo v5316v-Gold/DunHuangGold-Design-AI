@@ -4,6 +4,12 @@ import { db } from '@/db';
 import { users } from '@/db/schema';
 import { powerTransactions } from '@/db/schema/power-transactions';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +28,7 @@ export async function POST(request: NextRequest) {
     
     // 权限检查
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -30,16 +36,16 @@ export async function POST(request: NextRequest) {
 
     // 参数验证
     if (!userId) {
-      return NextResponse.json({ success: false, error: '用户ID不能为空' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '用户ID不能为空' }, { status: 400 });
     }
     
     if (!amount || typeof amount !== 'number' || amount === 0) {
-      return NextResponse.json({ success: false, error: '金额不能为空且不能为0' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '金额不能为空且不能为0' }, { status: 400 });
     }
 
     // 查询用户当前余额
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const userResult = await db
@@ -49,7 +55,7 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (userResult.length === 0) {
-      return NextResponse.json({ success: false, error: '用户不存在' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '用户不存在' }, { status: 404 });
     }
 
     const user = userResult[0];
@@ -63,7 +69,7 @@ export async function POST(request: NextRequest) {
     // 扣除时不能为负数
     if (newBalance < 0) {
       return NextResponse.json({ 
-        success: false, 
+        requestId: reqId(), success: false, 
         error: `余额不足。当前余额: ${currentBalance}，无法扣除 ${Math.abs(amount)}` 
       }, { status: 400 });
     }
@@ -93,7 +99,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         userId,
         type: isDeduct ? 'deduct' : 'recharge',
@@ -105,6 +111,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Power Recharge] 充值失败:', error);
-    return NextResponse.json({ success: false, error: '服务器错误' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '服务器错误' }, { status: 500 });
   }
 }

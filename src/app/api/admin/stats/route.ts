@@ -12,6 +12,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { users, works, powerLogs } from '@/db/schema';
 import { eq, sql, gte } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,12 +26,12 @@ export async function GET(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     if (!db) {
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: {
           totalUsers: 12580,
           activeUsers: 3420,
@@ -96,10 +102,10 @@ export async function GET(request: NextRequest) {
       pendingWorks: 0,
     };
 
-    return NextResponse.json({ success: true, data }, { headers: { 'X-Deprecated-Source': 'admin/stats' } });
+    return NextResponse.json({ requestId: reqId(), success: true, data }, { headers: { 'X-Deprecated-Source': 'admin/stats' } });
 
   } catch (error) {
     console.error('[admin/stats]', error);
-    return NextResponse.json({ success: false, error: '获取失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取失败' }, { status: 500 });
   }
 }

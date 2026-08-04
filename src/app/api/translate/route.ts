@@ -10,6 +10,12 @@ import { db } from '@/db';
 import { promptRules, appSettings } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('translate');
 
@@ -233,13 +239,13 @@ export async function POST(request: NextRequest) {
   try {
     if (!db) {
       logger.error('[translate] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const { text, dir = 'zh-en' } = await request.json();
 
     if (!text || text.trim().length === 0) {
-      return NextResponse.json({ success: false, error: '请输入要翻译的文本' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '请输入要翻译的文本' }, { status: 400 });
     }
 
     const translateDir: TranslateDir = dir === 'en-zh' ? 'en-zh' : 'zh-en';
@@ -279,8 +285,8 @@ export async function POST(request: NextRequest) {
       }
       
       if (!apiConfig || !apiConfig.apiKey) {
-        return NextResponse.json({ 
-          success: false,
+        return NextResponse.json({  
+          requestId: reqId(), success: false,
           error: `翻译服务未配置，请先在助手设置中配置API` 
         }, { status: 400 });
       }
@@ -301,7 +307,7 @@ export async function POST(request: NextRequest) {
     translated = postProcessTranslation(translated, translateSettings);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         original: text,
         translated,

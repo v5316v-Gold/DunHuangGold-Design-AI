@@ -6,6 +6,12 @@ import { eq } from 'drizzle-orm';
 
 // 导入共享的模拟数据模块
 import { rechargeMockUserBalance } from '../../mock-data';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 /**
@@ -28,7 +34,7 @@ export async function POST(
 
     // 参数验证
     if (!amount || typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json({ success: false, error: '充值金额必须大于0' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '充值金额必须大于0' }, { status: 400 });
     }
 
     // 开发模式返回模拟结果（跳过权限检查）
@@ -38,7 +44,7 @@ export async function POST(
       console.log(`[Mock] 充值成功: 用户 ${userId}, 原余额 ${previousBalance}, 充值 ${amount}, 新余额 ${newBalance}`);
       
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: {
           userId,
           amount,
@@ -52,7 +58,7 @@ export async function POST(
 
     // 生产环境权限检查
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     // 查询用户当前余额
@@ -63,7 +69,7 @@ export async function POST(
       .limit(1);
 
     if (userResult.length === 0) {
-      return NextResponse.json({ success: false, error: '用户不存在' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '用户不存在' }, { status: 404 });
     }
 
     const currentBalance = userResult[0].power;
@@ -89,7 +95,7 @@ export async function POST(
     });
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         userId,
         amount,
@@ -100,6 +106,6 @@ export async function POST(
     });
   } catch (error) {
     console.error('充值失败:', error);
-    return NextResponse.json({ success: false, error: '服务器错误' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '服务器错误' }, { status: 500 });
   }
 }

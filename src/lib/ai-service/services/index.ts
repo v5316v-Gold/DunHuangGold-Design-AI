@@ -23,6 +23,7 @@ import '@/lib/ai-service/services/img2video';
 import '@/lib/ai-service/services/stereo';
 import '@/lib/ai-service/services/dialogue';
 import '@/lib/ai-service/services/ai-assistant';
+import '@/lib/ai-service/services/tryon';
 
 export { registry } from '../service-registry';
 export { pipeline } from '../generation-pipeline';

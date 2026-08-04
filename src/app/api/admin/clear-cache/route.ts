@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeError } from '@/lib/validators';
 import { getCurrentUser } from '@/lib/auth';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 /**
@@ -11,7 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     const body = await request.json().catch(() => ({}));
     const { type } = body; // config, history, tags, translate, all
@@ -37,14 +43,14 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       message: '缓存清理成功',
       cleaned: type || 'all',
     });
   } catch (error) {
     console.error('[clear-cache] 错误:', error);
     return NextResponse.json(
-      { error: sanitizeError(error, '清除缓存失败').message },
+      {  error: sanitizeError(error, '清除缓存失败').message },
       { status: 500 }
     );
   }

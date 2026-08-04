@@ -4,6 +4,12 @@
  * 合并目标: /api/chat
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,14 +40,13 @@ export async function POST(request: NextRequest) {
     const response = await fetch(forwarded);
     const data = await response.json();
 
-    return NextResponse.json(data, {
-      status: response.status,
+    return NextResponse.json(data, { status: response.status,
       headers: { 'X-Deprecated-Source': 'openclaw-chat' },
     });
   } catch (error) {
     console.error('[openclaw-chat deprecated] 转发失败:', error);
     return NextResponse.json(
-      { success: false, error: '路由已废弃，转发失败' },
+      {  success: false, error: '路由已废弃，转发失败' },
       { status: 500 }
     );
   }
@@ -49,7 +54,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json(
-    {
+    { 
       error: '此路由已废弃，请使用 /api/chat',
       deprecated: true,
       migration: 'POST /api/chat',

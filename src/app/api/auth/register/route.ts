@@ -3,6 +3,12 @@ import { hashPassword, generateToken } from '@/lib/auth';
 import { db, users } from '@/storage/database/db';
 import { eq } from 'drizzle-orm';
 import { rateLimit, getClientIP, AUTH_LIMIT, rateLimitResponse } from '@/lib/rate-limit';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 /**
  * 用户注册
@@ -10,7 +16,7 @@ import { rateLimit, getClientIP, AUTH_LIMIT, rateLimitResponse } from '@/lib/rat
  * Body: { email, password, nickname? }
  */
 export async function POST(request: NextRequest) {
-  if (!db) return NextResponse.json({ success: false, error: "数据库未配置" }, { status: 503 });
+  if (!db) return NextResponse.json({ requestId: reqId(), success: false, error: "数据库未配置" }, { status: 503 });
 
   // Rate Limit：同一 IP 5分钟最多10次
   const ip = getClientIP(request);
@@ -23,14 +29,14 @@ export async function POST(request: NextRequest) {
     // 参数验证
     if (!email || !password) {
       return NextResponse.json(
-        { error: '邮箱和密码为必填项' },
+        {  error: '邮箱和密码为必填项' },
         { status: 400 }
       );
     }
 
     if (password.length < 6) {
       return NextResponse.json(
-        { error: '密码长度至少6位' },
+        {  error: '密码长度至少6位' },
         { status: 400 }
       );
     }
@@ -39,7 +45,7 @@ export async function POST(request: NextRequest) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
-        { error: '邮箱格式不正确' },
+        {  error: '邮箱格式不正确' },
         { status: 400 }
       );
     }
@@ -53,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUsers.length > 0) {
       return NextResponse.json(
-        { error: '该邮箱已被注册' },
+        {  error: '该邮箱已被注册' },
         { status: 409 }
       );
     }
@@ -89,7 +95,7 @@ export async function POST(request: NextRequest) {
     });
 
     const response = NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         user: newUser,
         token,
@@ -110,7 +116,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('注册失败:', error);
     return NextResponse.json(
-      { error: '服务器错误，请稍后重试' },
+      {  error: '服务器错误，请稍后重试' },
       { status: 500 }
     );
   }

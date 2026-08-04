@@ -3,7 +3,7 @@
  * 管理用户登录状态
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 const TOKEN_KEY = 'dunhuang_token';
 const USER_KEY = 'dunhuang_user';
@@ -36,38 +36,30 @@ interface UseAuthReturn {
 }
 
 export function useAuth(): UseAuthReturn {
-  // 从 localStorage 初始化状态
-  const initializeAuthState = () => {
-    const savedToken = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-    const savedUser = typeof window !== 'undefined' ? localStorage.getItem(USER_KEY) : null;
+  // SSR 首帧始终为未登录，避免 hydration mismatch；
+  // 挂载后 useEffect 再从 localStorage 恢复会话。
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-    let initialUser: User | null = null;
+  // 客户端挂载后恢复登录态（SSR 时 window 不存在，此 effect 不执行）
+  useEffect(() => {
+    const savedToken = localStorage.getItem(TOKEN_KEY);
+    const savedUser = localStorage.getItem(USER_KEY);
+
+    let restoredUser: User | null = null;
     if (savedUser) {
       try {
-        initialUser = JSON.parse(savedUser);
+        restoredUser = JSON.parse(savedUser);
       } catch {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(USER_KEY);
-        }
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
       }
     }
-
-    return {
-      user: initialUser,
-      token: savedToken,
-      isLoading: false,
-    };
-  };
-
-  const {
-    user: initialUser,
-    token: initialToken,
-    isLoading: initialLoading,
-  } = initializeAuthState();
-
-  const [user, setUser] = useState<User | null>(initialUser);
-  const [token, setToken] = useState<string | null>(initialToken);
+    setUser(restoredUser);
+    setToken(savedToken);
+    setIsLoading(false);
+  }, []);
 
   // 登录
   const login = useCallback(async (email: string, password: string) => {
@@ -179,7 +171,7 @@ export function useAuth(): UseAuthReturn {
   return {
     user,
     token,
-    isLoading: false,
+    isLoading,
     isAuthenticated: !!user,
     login,
     register,

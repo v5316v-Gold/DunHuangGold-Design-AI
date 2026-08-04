@@ -1,5 +1,5 @@
 /**
- * Phase 2 单测：API envelope + middleware
+ * Phase 2/3 单测：API envelope + middleware（Phase 3.6 已重启用）
  * 验证：16 错误码 + envelope 格式 + idempotency 防双扣
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

@@ -8,6 +8,12 @@ import { db } from '@/db';
 import { systemSettings } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { getAIAssistantConfig } from '@/lib/ai-assistant-config';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export type { AIAssistantConfig } from '@/lib/ai-assistant-config';
 
 export const runtime = 'nodejs';
@@ -82,12 +88,12 @@ async function saveAIAssistantConfigToDB(config: {
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
   }
   const config = await getAIAssistantConfig();
 
   return NextResponse.json({
-    success: true,
+    requestId: reqId(), success: true,
     data: {
       hasKey: !!config.apiKey,
       apiKey: config.apiKey,
@@ -108,7 +114,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     const body = await request.json();
     const { apiKey, provider, model, optimizeModel } = body;
@@ -138,13 +144,13 @@ export async function POST(request: NextRequest) {
 
     if (!saved) {
       return NextResponse.json(
-        { success: false, error: '保存配置失败，数据库不可用' },
+        {  success: false, error: '保存配置失败，数据库不可用' },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         hasKey: !!(updateData.apiKey || existingConfig.apiKey),
         apiKey: updateData.apiKey || existingConfig.apiKey,
@@ -157,7 +163,7 @@ export async function POST(request: NextRequest) {
     console.error('保存AI助手配置失败:', error);
     const errorMessage = error instanceof Error ? error.message : '保存失败';
     return NextResponse.json(
-      { success: false, error: errorMessage },
+      {  success: false, error: errorMessage },
       { status: 500 }
     );
   }

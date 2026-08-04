@@ -4,6 +4,12 @@ import { db } from '@/storage/database/db';
 import { works } from '@/storage/database/shared/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('works');
 
@@ -17,11 +23,11 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -43,14 +49,14 @@ export async function GET(request: NextRequest) {
       .offset(offset);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: results,
       total: results.length
     });
 
   } catch (error) {
     logger.error('[works] 获取列表失败:');
-    return NextResponse.json({ success: false, error: '获取失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取失败' }, { status: 500 });
   }
 }
 
@@ -61,18 +67,18 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
 
     const body = await request.json();
     const { title, type, prompt, inputImageUrl, outputImageUrl, outputVideoUrl, outputModelUrl } = body;
 
     if (!title || !type) {
-      return NextResponse.json({ success: false, error: '缺少必填参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少必填参数' }, { status: 400 });
     }
 
     const result = await db.insert(works).values({
@@ -86,10 +92,10 @@ export async function POST(request: NextRequest) {
       outputModelUrl: outputModelUrl || null,
     }).returning();
 
-    return NextResponse.json({ success: true, data: result[0] });
+    return NextResponse.json({ requestId: reqId(), success: true, data: result[0] });
 
   } catch (error) {
     logger.error('[works] 创建失败:');
-    return NextResponse.json({ success: false, error: '创建失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '创建失败' }, { status: 500 });
   }
 }

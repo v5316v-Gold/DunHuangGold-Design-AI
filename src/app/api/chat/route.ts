@@ -9,6 +9,11 @@ import { chatSchema, sanitizeError } from '@/lib/validators';
 import { randomUUID } from 'crypto';
 import { unauthorized } from '@/lib/api-response';
 
+// Phase 3.6：统一 requestId 注入
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
+
 export const runtime = 'nodejs';
 
 /**
@@ -65,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'AI 服务未配置，请检查 MINIMAX_API_KEY 环境变量' }, { status: 500 });
+      return NextResponse.json({requestId: reqId(),  success: false, error: 'AI 服务未配置，请检查 MINIMAX_API_KEY 环境变量' }, { status: 500 });
     }
 
     // 根据 provider 参数或降级策略决定使用哪个 provider
@@ -115,14 +120,14 @@ export async function POST(request: NextRequest) {
     // 处理 zod 验证错误
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
-        { success: false, error: '参数验证失败', details: (error as any).errors },
+        {requestId: reqId(),  success: false, error: '参数验证失败', details: (error as any).errors },
         { status: 400 }
       );
     }
     // 脱敏错误处理
     const { message } = sanitizeError(error, '对话失败，请稍后重试');
     logger.error('chat 失败', error);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json({requestId: reqId(),  success: false, error: message }, { status: 500 });
   }
 }
 

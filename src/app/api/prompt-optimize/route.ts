@@ -10,6 +10,12 @@ import { promptRules, appSettings } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
 import { unauthorized, internalError } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('prompt-optimize');
 
@@ -356,13 +362,13 @@ export async function POST(request: NextRequest) {
   try {
     if (!db) {
       logger.error('[prompt-optimize] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const { prompt, ruleId, category = 'optimize' } = await request.json();
 
     if (!prompt || prompt.trim().length === 0) {
-      return NextResponse.json({ success: false, error: '请输入提示词' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '请输入提示词' }, { status: 400 });
     }
 
     // 获取助手设置
@@ -385,7 +391,7 @@ export async function POST(request: NextRequest) {
     
     if (!apiConfig) {
       return NextResponse.json({ 
-        success: false, 
+        requestId: reqId(), success: false, 
         error: `AI服务未配置，请先在助手设置-助手API管理中添加并启用API配置` 
       }, { status: 400 });
     }
@@ -416,7 +422,7 @@ export async function POST(request: NextRequest) {
 
     if (rules.length === 0) {
       return NextResponse.json({ 
-        success: false, 
+        requestId: reqId(), success: false, 
         error: '未找到启用的规则，请先在规则管理器中添加并启用规则' 
       }, { status: 400 });
     }
@@ -432,7 +438,7 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         original: prompt.trim(),
         optimized: optimized.trim(),
@@ -457,7 +463,7 @@ export async function GET(request: NextRequest) {
   try {
     if (!db) {
       logger.error('[prompt-optimize] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const { searchParams } = new URL(request.url);
@@ -491,7 +497,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         categories: categorized,
         rules: rules.map(r => ({

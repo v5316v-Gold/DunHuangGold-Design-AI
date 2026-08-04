@@ -3,6 +3,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { apiConfigs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 // API配置项类型
@@ -39,14 +45,14 @@ export async function GET(request: NextRequest) {
 
     // 权限检查（需要管理员）
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     // 开发模式返回内存配置
     if (!db) {
       const { coreApiConfigs } = await import('@/lib/api-config');
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: coreApiConfigs,
         mode: 'memory',
       });
@@ -76,13 +82,13 @@ export async function GET(request: NextRequest) {
     }, {} as ApiConfigMap);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: configsMap,
       mode: 'database',
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '获取配置失败';
-    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: errorMessage }, { status: 500 });
   }
 }
 
@@ -95,12 +101,12 @@ export async function PUT(request: NextRequest) {
     const payload = await getCurrentUser(request);
 
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     if (!db) {
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         message: '配置已更新（内存模式）',
       });
     }
@@ -109,7 +115,7 @@ export async function PUT(request: NextRequest) {
     const { id, config } = body;
 
     if (!id || !config) {
-      return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少参数' }, { status: 400 });
     }
 
     // 更新数据库
@@ -131,11 +137,11 @@ export async function PUT(request: NextRequest) {
       .where(eq(apiConfigs.id, id));
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       message: '配置已保存到数据库',
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '保存配置失败';
-    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: errorMessage }, { status: 500 });
   }
 }

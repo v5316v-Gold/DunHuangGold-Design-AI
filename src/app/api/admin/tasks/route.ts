@@ -15,12 +15,18 @@ import { db } from '@/db';
 import { tasks } from '@/db/schema';
 import { requireAuth } from '@/lib/auth';
 import { logAudit } from '@/lib/audit-logger';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const dynamic = 'force-dynamic';
 
 function forbidden() {
   return NextResponse.json(
-    {
+    { 
       success: false,
       data: null,
       error: { code: 'FORBIDDEN', message: '需要管理员权限' },
@@ -56,7 +62,7 @@ export async function GET(request: NextRequest) {
     // 无数据库（开发 mock 模式）：返回空列表
     if (!db) {
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: { items: [], total: 0, page, pageSize },
         error: null,
         meta: { mode: 'mock' },
@@ -110,7 +116,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: { items, total, page, pageSize },
       error: null,
       meta: {},
@@ -118,7 +124,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[admin/tasks] 查询任务列表失败:', error);
     return NextResponse.json(
-      {
+      { 
         success: false,
         data: null,
         error: { code: 'INTERNAL_ERROR', message: '服务器内部错误' },

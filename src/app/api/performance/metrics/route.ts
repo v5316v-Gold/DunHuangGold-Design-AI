@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PerformanceMonitor, checkPerformanceHealth } from '@/lib/performance-monitor';
 import { requireAuth } from '@/lib/auth';
 import { unauthorized } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 /**
  * 性能监控 API
@@ -31,7 +37,7 @@ export async function GET(request: NextRequest) {
       });
 
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: health,
       });
     }
@@ -41,14 +47,14 @@ export async function GET(request: NextRequest) {
       const name = searchParams.get('name');
       if (!name) {
         return NextResponse.json(
-          { error: '缺少 name 参数' },
+          {  error: '缺少 name 参数' },
           { status: 400 }
         );
       }
 
       const stats = monitor.getStats(name);
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: stats,
       });
     }
@@ -62,14 +68,14 @@ export async function GET(request: NextRequest) {
     const limitedMetrics = metrics.slice(-limit);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: limitedMetrics,
       total: metrics.length,
     });
   } catch (error) {
     console.error('[performance-metrics] 错误:', error);
     return NextResponse.json(
-      { error: '获取性能指标失败' },
+      {  error: '获取性能指标失败' },
       { status: 500 }
     );
   }
@@ -92,13 +98,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       message: name ? `已清除 ${name} 的指标` : '已清除所有指标',
     });
   } catch (error) {
     console.error('[performance-metrics] 清除失败:', error);
     return NextResponse.json(
-      { error: '清除性能指标失败' },
+      {  error: '清除性能指标失败' },
       { status: 500 }
     );
   }

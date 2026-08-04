@@ -4,12 +4,12 @@
 敦煌金 AI 设计平台是一个集成多种 AI 设计工具的在线工作台，包含文案生图、3D 建模、浮雕设计、视频生成等功能。采用敦煌金色主题（#C8A45C），深色背景系统，响应式布局。
 
 ## 技术栈
-- **框架**: Next.js 16 (App Router) + React 19
+- **框架**: Next.js 15.1.0 (App Router) + React 19
 - **语言**: TypeScript 5
 - **样式**: Tailwind CSS 4 + CSS 变量
 - **UI组件**: shadcn/ui (基于 Radix UI)
-- **SDK**: coze-coding-dev-sdk (图片生成、对话)
-- **代码规范**: Airbnb + ESLint
+- **AI 能力**: ComfyUI（本地）· MiniMax / Qwen / Zhipu / Meshy（云端）
+- **代码规范**: ESLint 9 (flat config) + Prettier
 
 ## 目录结构
 ```

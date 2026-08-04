@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { unauthorized, badRequest, forbidden, internalError } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 /**
  * 模型文件代理（解决跨域问题）
@@ -28,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { success: false, error: `模型文件获取失败: ${response.status}` },
+        {  success: false, error: `模型文件获取失败: ${response.status}` },
         { status: 502 }
       );
     }

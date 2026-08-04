@@ -39,26 +39,6 @@ const eslintConfig = defineConfig([
     'dist/**',
     // Script files (CommonJS):
     'scripts/**/*.js',
-    // Root-level CommonJS/JS utility scripts:
-    'check-apikeys.js',
-    'check-users.js',
-    'find-admin.js',
-    'find-missing-creds.js',
-    'get-token.js',
-    'reset-admin.js',
-    'test-api-full.js',
-    'test-api.js',
-    'test-api.ps1',
-    'test-cookie.js',
-    'test-direct-minimax.ts',
-    'test-minimax.ts',
-    'test-qwen-api.mjs',
-    'test_stream.js',
-    'verify-image.js',
-    'cleanup_unused_v2.txt',
-    'gen-hash.js',
-    'login-admin.ts',
-    'reset-admin.ts',
   ]),
 ]);
 

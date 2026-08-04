@@ -2,24 +2,20 @@
  * GET /api/tasks/[id]
  *
  * 查询任务状态（前端轮询用）
+ * Phase 3.2：委托 GenerationService.query（含归属校验）
  *
  * 响应：
  * {
- *   id: string,
- *   status: 'pending' | 'processing' | 'completed' | 'failed' | 'dead_letter' | 'cancelled',
- *   progress: 0-100,
- *   error: string | null,
- *   output: object | null,
- *   startedAt: ISO date | null,
- *   completedAt: ISO date | null,
- *   createdAt: ISO date
+ *   id, status, progress, error, output, type, powerCost,
+ *   startedAt, completedAt, createdAt
  * }
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { randomUUID } from 'crypto';
 import { requireAuth } from '@/lib/auth';
-import { getTaskState } from '@/lib/queue/task-state';
-import { unauthorized, notFound } from '@/lib/api-response';
+import { ApiErrors, fail, ok } from '@/lib/api/envelope';
+import { generationService } from '@/lib/ai/application/generation-service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,32 +24,32 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // 1. 鉴权
-  const user = await requireAuth(request);
-  if (!user) return unauthorized();
+  try {
+    // 1. 鉴权
+    const user = await requireAuth(request);
+    if (!user) return ApiErrors.authRequired('req');
+    const requestId = request.headers.get('X-Request-Id') || `req_${randomUUID()}`;
 
-  // 2. 解析 taskId
-  const { id: taskId } = await params;
-  if (!taskId) return notFound('任务不存在');
+    // 2. 解析 taskId
+    const { id: taskId } = await params;
+    if (!taskId) return fail('INVALID_INPUT', '缺少任务 ID', { requestId });
 
-  // 3. 查询状态
-  const state = await getTaskState(taskId);
-  if (!state) return notFound('任务不存在');
+    // 3. 委托 GenerationService.query（归属校验在服务内）
+    const result = await generationService.query(user.userId, taskId, { requestId });
 
-  // 4. 鉴权：只能看自己的任务
-  if (state.userId !== user.userId) {
-    return unauthorized();
+    if (!result.found) {
+      return fail('TASK_NOT_FOUND', '任务不存在', { requestId });
+    }
+    if (!result.owned) {
+      return fail('PERMISSION_DENIED', '无权查看他人任务', { requestId });
+    }
+
+    return ok(result.task, { requestId });
+  } catch (error) {
+    console.error('[tasks/[id]] 查询任务异常:', error);
+    return fail('INTERNAL_ERROR', '查询任务失败', {
+      requestId: 'req_unknown',
+      details: { message: error instanceof Error ? error.message : String(error) },
+    });
   }
-
-  return NextResponse.json({
-    id: state.id,
-    status: state.status,
-    progress: state.progress,
-    error: state.error,
-    output: state.output,
-    startedAt: state.startedAt,
-    completedAt: state.completedAt,
-    createdAt: state.createdAt,
-    type: state.type,
-  });
 }

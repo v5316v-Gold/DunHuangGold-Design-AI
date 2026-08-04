@@ -15,6 +15,12 @@ import { requireAuth } from '@/lib/auth';
 import { runSystemHealthCheck } from '@/lib/health/system-health';
 import { logAudit } from '@/lib/audit-logger';
 import { apiSuccess, unauthorized, internalError } from '@/lib/api-response';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

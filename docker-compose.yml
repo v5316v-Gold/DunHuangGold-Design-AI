@@ -71,9 +71,15 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
-      MINIMAX_API_KEY: ${MINIMAX_API_KEY}
+      API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY:-}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
       MINIMAX_API_BASE: ${MINIMAX_API_BASE:-https://api.minimax.chat/v1}
-      QWEN_API_KEY: ${QWEN_API_KEY}
+      MINIMAX_MODEL: ${MINIMAX_MODEL:-}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY:-}
+      KIMI_API_KEY: ${KIMI_API_KEY:-}
+      MESHY_API_KEY: ${MESHY_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:5000}
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5000}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
@@ -111,6 +117,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
+      API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY:-}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      MESHY_API_KEY: ${MESHY_API_KEY:-}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:5000}
     depends_on:
       postgres:

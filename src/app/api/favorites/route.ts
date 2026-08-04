@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/db';
 import { eq, and, desc } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export async function GET(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     const userId = payload.userId;
@@ -44,12 +50,12 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: favorites,
     });
   } catch (error) {
     console.error('[Favorites GET] Error:', error);
-    return NextResponse.json({ success: false, error: '获取收藏列表失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取收藏列表失败' }, { status: 500 });
   }
 }
 
@@ -57,13 +63,13 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     const userId = payload.userId;
     const { workId } = await request.json();
     if (!workId) {
-      return NextResponse.json({ success: false, error: '缺少workId' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少workId' }, { status: 400 });
     }
 
     // 检查是否已收藏
@@ -74,7 +80,7 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (existing.length > 0) {
-      return NextResponse.json({ success: false, error: '已经收藏过了' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '已经收藏过了' }, { status: 400 });
     }
 
     // 创建收藏
@@ -84,12 +90,12 @@ export async function POST(request: NextRequest) {
       .returning();
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: newFavorite,
     });
   } catch (error) {
     console.error('[Favorites POST] Error:', error);
-    return NextResponse.json({ success: false, error: '添加收藏失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '添加收藏失败' }, { status: 500 });
   }
 }
 
@@ -97,7 +103,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     const userId = payload.userId;
@@ -105,7 +111,7 @@ export async function DELETE(request: NextRequest) {
     const workId = searchParams.get('workId');
 
     if (!workId) {
-      return NextResponse.json({ success: false, error: '缺少workId' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少workId' }, { status: 400 });
     }
 
     // 删除收藏
@@ -113,9 +119,9 @@ export async function DELETE(request: NextRequest) {
       .delete(schema.favorites)
       .where(and(eq(schema.favorites.userId, userId), eq(schema.favorites.workId, workId)));
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ requestId: reqId(), success: true });
   } catch (error) {
     console.error('[Favorites DELETE] Error:', error);
-    return NextResponse.json({ success: false, error: '取消收藏失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '取消收藏失败' }, { status: 500 });
   }
 }

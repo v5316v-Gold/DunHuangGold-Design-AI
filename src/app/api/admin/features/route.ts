@@ -5,10 +5,16 @@ import { features } from '@/db/schema/features';
 import { FEATURE_DEFINITIONS } from '@/config/features';
 import { requireAuth } from '@/lib/auth';
 import { logAudit } from '@/lib/audit-logger';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 function forbidden() {
   return NextResponse.json(
-    {
+    { 
       success: false,
       data: null,
       error: { code: 'FORBIDDEN', message: '需要管理员权限' },
@@ -25,13 +31,13 @@ export async function GET(request: NextRequest) {
   if (!(await admin(request))) return forbidden();
   if (!db)
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: { features: Object.values(FEATURE_DEFINITIONS) },
       error: null,
       meta: {},
     });
   return NextResponse.json({
-    success: true,
+    requestId: reqId(), success: true,
     data: { features: await db.select().from(features) },
     error: null,
     meta: {},
@@ -44,7 +50,7 @@ export async function POST(request: NextRequest) {
   const id = String(body.id || '');
   if (!id || !FEATURE_DEFINITIONS[id])
     return NextResponse.json(
-      {
+      { 
         success: false,
         data: null,
         error: { code: 'INVALID_FEATURE', message: '未知功能' },
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
     resourceId: id,
     actorId: user.userId,
   });
-  return NextResponse.json({ success: true, data: row, error: null, meta: {} }, { status: 201 });
+  return NextResponse.json({ requestId: reqId(), success: true, data: row, error: null, meta: {} }, { status: 201 });
 }
 export async function PATCH(request: NextRequest) {
   const user = await admin(request);
@@ -96,7 +102,7 @@ export async function PATCH(request: NextRequest) {
     .returning();
   if (!row)
     return NextResponse.json(
-      { success: false, data: null, error: { code: 'NOT_FOUND', message: '功能不存在' }, meta: {} },
+      {  success: false, data: null, error: { code: 'NOT_FOUND', message: '功能不存在' }, meta: {} },
       { status: 404 }
     );
   await logAudit({
@@ -106,5 +112,5 @@ export async function PATCH(request: NextRequest) {
     actorId: user.userId,
     details: changes,
   });
-  return NextResponse.json({ success: true, data: row, error: null, meta: {} });
+  return NextResponse.json({ requestId: reqId(), success: true, data: row, error: null, meta: {} });
 }

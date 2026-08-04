@@ -140,7 +140,11 @@ export function getClientIP(request: Request): string {
 }
 
 /**
- * 限速检查
+ * 限速检查（任务7：Redis 优先，多实例共享；Redis 不可用降级内存）
+ *
+ * 策略：
+ *   1. 生产环境（NODE_ENV=production）且 Redis 可用 → INCR + EXPIRE 原子计数（多容器共享）
+ *   2. Redis 不可用 → 内存 Map 降级（单实例，fail-open 语义：不阻断业务）
  */
 export async function rateLimit(
   identifier: string,
@@ -148,7 +152,28 @@ export async function rateLimit(
 ): Promise<RateLimitResult> {
   const { limit, window = 5 * 60 * 1000 } = options
   const now = Date.now()
+  const windowSec = Math.ceil(window / 1000)
 
+  // 1. Redis 优先（生产环境多实例共享；开发环境有 Redis 也走，无则内存）
+  try {
+    const { getRedis } = await import('@/lib/redis')
+    const redis = getRedis()
+    const key = `ratelimit:${identifier}`
+    const count = await redis.incr(key)
+    if (count === 1) {
+      await redis.expire(key, windowSec)
+    }
+    return {
+      success: count <= limit,
+      remaining: Math.max(0, limit - count),
+      reset: Math.floor((now + window) / 1000),
+      limit,
+    }
+  } catch {
+    // Redis 不可用 → 内存降级
+  }
+
+  // 2. 内存降级（单实例）
   cleanup()
 
   const record = store.get(identifier)

@@ -9,6 +9,12 @@ import { db } from '@/db';
 import { powerLogs } from '@/db/schema';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('operation-logs');
 
@@ -22,11 +28,11 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -73,14 +79,14 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: formattedLogs,
       total: formattedLogs.length,
     });
 
   } catch (error) {
     logger.error('获取操作日志失败', error);
-    return NextResponse.json({ success: false, error: '获取失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取失败' }, { status: 500 });
   }
 }
 
@@ -91,19 +97,19 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
 
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     const body = await request.json();
     const { type, amount, balance, reason, relatedId } = body;
 
     if (!type || amount === undefined || balance === undefined) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: '缺少必填参数：type, amount, balance'
       }, { status: 400 });
     }
@@ -120,11 +126,11 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    return NextResponse.json({ success: true, data: result[0] });
+    return NextResponse.json({ requestId: reqId(), success: true, data: result[0] });
 
   } catch (error) {
     logger.error('记录操作日志失败', error);
-    return NextResponse.json({ success: false, error: '记录失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '记录失败' }, { status: 500 });
   }
 }
 

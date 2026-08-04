@@ -13,6 +13,12 @@ import { db } from '@/storage/database/db';
 import { memoryDb } from '@/storage/database/memory-db';
 import { comfyuiConfigs } from '@/storage/database/shared/schema';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
@@ -81,12 +87,12 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: configs,
     });
   } catch (err: unknown) {
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: (err instanceof Error ? err.message : String(err)),
     }, { status: 500 });
   }
@@ -102,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     if (!featureId) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: '缺少 featureId 参数',
       }, { status: 400 });
     }
@@ -110,7 +116,7 @@ export async function POST(request: NextRequest) {
     const feature = getFeature(featureId);
     if (!feature) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: `功能不存在: ${featureId}`,
       }, { status: 400 });
     }
@@ -158,13 +164,13 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: configData,
       message: `功能 ${featureId} 的ComfyUI配置已保存`,
     });
   } catch (err: unknown) {
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: (err instanceof Error ? err.message : String(err)),
     }, { status: 500 });
   }
@@ -180,7 +186,7 @@ export async function DELETE(request: NextRequest) {
 
     if (!featureId) {
       return NextResponse.json({
-        success: false,
+        requestId: reqId(), success: false,
         error: '缺少 featureId 参数',
       }, { status: 400 });
     }
@@ -194,12 +200,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       message: `已重置 ${featureId} 的ComfyUI配置`,
     });
   } catch (err: unknown) {
     return NextResponse.json({
-      success: false,
+      requestId: reqId(), success: false,
       error: (err instanceof Error ? err.message : String(err)),
     }, { status: 500 });
   }

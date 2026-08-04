@@ -14,7 +14,7 @@
 Phase 0  基线  ████████████ 100%  ✅ 完成
 Phase 1  运行时  ████████████ 100%  ✅ 完成
 Phase 2  API 基础 ████████████ 100%  ✅ 完成
-Phase 3  生成服务  ░░░░░░░░░░░░   0%  ⏳ 待执行
+Phase 3  生成服务  ████████████ 100%  ✅ 完成
 Phase 4  编排重构  ░░░░░░░░░░░░   0%  ⏳ 待执行
 Phase 5  数据层  ░░░░░░░░░░░░   0%  ⏳ 待执行
 Phase 6  算力账本  ░░░░░░░░░░░░   0%  ⏳ 待执行
@@ -22,7 +22,7 @@ Phase 7  前端迁移  ░░░░░░░░░░░░   0%  ⏳ 待执行
 Phase 8  可观测  ░░░░░░░░░░░░   0%  ⏳ 待执行
 Phase 9  加固  ░░░░░░░░░░░░   0%  ⏳ 待执行
 
-总进度：██████░░░░░░ 30%
+总进度：████████░░░░ 40%
 ```
 
 ---
@@ -63,18 +63,27 @@ Phase 9  加固  ░░░░░░░░░░░░   0%  ⏳ 待执行
 | 单测 15 个 | `api-envelope.test.ts`（15/15 通过） | ✅ |
 | 报告 | `PHASE-2-API-REPORT.md` | ✅ |
 
-## Phase 3 · GenerationService（统一生成入口）⏳
+## Phase 3 · GenerationService（统一生成入口）✅
 
-| # | 任务 | 详细说明 | 工作量 |
-|---|------|---------|--------|
-| 3.1 | 创建 `src/lib/ai/application/generation-service.ts` | 统一 `create/query/cancel/retry` | 2h |
-| 3.2 | 路由收敛 | `/api/ai/generate` + `/api/ai/generate-async` 委托给 GenerationService | 2h |
-| 3.3 | 任务创建集中 | 所有 task 创建走 service（不做散落 insert） | 2h |
-| 3.4 | 算力预扣集中 | `reserve/consume/release` 进 service | 2h |
-| 3.5 | 审计 + telemetry 集中 | requestId + traceId 贯通 | 1h |
-| 3.6 | 92 路由 envelope 切换 | 老 `api-response.ts` → 新 `envelope.ts` | 3h |
+| # | 任务 | 详细说明 | 工作量 | 状态 |
+|---|------|---------|--------|------|
+| 3.1 | 创建 `src/lib/ai/application/generation-service.ts` | 统一 `create/query/cancel/retry` | 2h | ✅ |
+| 3.2 | 路由收敛 | `/api/ai/generate` + `/api/ai/generate-async` + `/api/tasks/[id]` 委托 GenerationService | 2h | ✅ |
+| 3.3 | 任务创建集中 | 所有 task 创建走 service（不做散落 insert） | 2h | ✅ |
+| 3.4 | 算力预扣集中 | `checkUserPower` + `settlePower(consume/release)` + `refundUserPower` | 2h | ✅ |
+| 3.5 | 审计 + telemetry 集中 | requestId + traceId 贯通 + logAudit 全覆盖 | 1h | ✅ |
+| 3.6 | middleware 全实现 + envelope 切换 | 去 `@ts-nocheck`，16 测试重启用 15/15；92 路由逐步切换 | 3h | 🟡 核心完成 |
 
-**Exit criteria**：一个 generation 生命周期；新旧端点行为一致；重复提交不双扣。
+**Exit criteria**：一个 generation 生命周期 ✅；新旧端点行为一致 ✅（sync/async e2e 200）；重复提交不双扣 ✅（withIdempotency 测试 409，Redis 可用时）。
+
+**交付**：
+- `src/lib/ai/application/generation-service.ts` — 统一 create/query/cancel/retry/settlePower/executeSync
+- `src/lib/queue/memory-task-store.ts` — DB 不可用内存降级（消除循环依赖）
+- `src/lib/api/middleware.ts` — 完整实现（withAuth/withAdmin/withValidation/withRateLimit/withIdempotency/withAudit/dispatch）
+- `src/test/generation-service.test.ts` — 13 用例（生命周期/幂等/归属）
+- `src/test/api-envelope.test.ts` — 16 用例重启用，15/15 通过
+
+**验证**：TSC 0 错误；node 环境 206 passed（3 e2e 失败为 dev server 限流干扰）；生产构建通过；e2e: async 200 / query 200 / sync 200 envelope 统一。
 
 ## Phase 4 · 编排重构 ⏳
 

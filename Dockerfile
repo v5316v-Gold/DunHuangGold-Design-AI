@@ -45,6 +45,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV COZE_PROJECT_ENV=PROD
 ENV PORT=5000
 
+# 环境变量全部由 docker-compose environment 注入（镜像内不包含任何 .env 文件）
+# 所需变量: DATABASE_URL / REDIS_URL / JWT_SECRET / MINIMAX_API_KEY / QWEN_API_KEY 等
+
 # 创建非 root 用户
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -59,9 +62,6 @@ COPY --from=builder /app/dist ./dist
 # 复制依赖和 package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
-
-# 复制必要文件
-COPY --from=builder /app/.env.local ./.env.local
 
 # 设置权限
 RUN chown -R nextjs:nodejs /app

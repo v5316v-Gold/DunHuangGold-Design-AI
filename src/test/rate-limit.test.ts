@@ -4,6 +4,14 @@
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock Redis 不可用 → rateLimit 走内存降级路径（保持单实例测试语义）
+vi.mock('@/lib/redis', () => ({
+  getRedis: () => {
+    throw new Error('redis unavailable (mock)');
+  },
+}));
+
 import { rateLimit, getClientIP, AUTH_LIMIT, WRITE_LIMIT, API_LIMIT } from '@/lib/rate-limit';
 
 describe('rateLimit — 基础行为', () => {

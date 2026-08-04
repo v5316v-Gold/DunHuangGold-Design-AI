@@ -10,6 +10,9 @@
 
 export * from './schema/_tables';
 export * from './schema/features';
+export * from './schema/power-reservations';
+export * from './schema/workflow-versions';
+export * from './schema/providers';
 
 // ==================== 关系定义 ====================
 import { relations } from 'drizzle-orm';
@@ -90,4 +93,6 @@ export type SystemSetting = typeof import('./schema/_tables').systemSettings.$in
 export type PromptRule = typeof import('./schema/_tables').promptRules.$inferSelect;
 export type TranslateSetting = typeof import('./schema/_tables').translateSettings.$inferSelect;
 export type Model = typeof import('./schema/_tables').models.$inferSelect;
+export type PowerReservation = typeof import('./schema/power-reservations').powerReservations.$inferSelect;
+export type NewPowerReservation = typeof import('./schema/power-reservations').powerReservations.$inferInsert;
 export type NewModel = typeof import('./schema/_tables').models.$inferInsert;

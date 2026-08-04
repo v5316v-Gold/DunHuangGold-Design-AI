@@ -7,6 +7,12 @@ import { createLogger } from '@/lib/error-handler';
 import { requireAuth } from '@/lib/auth';
 import { unauthorized, badRequest, internalError } from '@/lib/api-response';
 import { rateLimit, getClientIP, WRITE_LIMIT, rateLimitResponse } from '@/lib/rate-limit';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('upload');
 
@@ -77,7 +83,7 @@ export async function POST(request: NextRequest) {
     logger.info('文件上传成功', { type, filename, size: file.size });
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       url,
       filename,
       size: file.size,
@@ -100,7 +106,7 @@ export async function GET(request: NextRequest) {
     const generatedDir = getFileTypeDir('generated');
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       paths: {
         images: existsSync(imagesDir) ? `/uploads/images/` : null,
         generated: existsSync(generatedDir) ? `/uploads/generated/` : null,
@@ -109,6 +115,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     logger.error('获取上传目录失败', error);
-    return NextResponse.json({ success: false, error: '获取失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取失败' }, { status: 500 });
   }
 }

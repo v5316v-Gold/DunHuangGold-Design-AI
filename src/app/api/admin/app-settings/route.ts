@@ -7,29 +7,35 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { appSettings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     if (!db) {
       console.error('[app-settings] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const settings = await db.select().from(appSettings).where(eq(appSettings.id, 'default')).limit(1);
     
     if (settings.length === 0) {
-      return NextResponse.json({ success: true, data: null });
+      return NextResponse.json({ requestId: reqId(), success: true, data: null });
     }
     
-    return NextResponse.json({ success: true, data: settings[0] });
+    return NextResponse.json({ requestId: reqId(), success: true, data: settings[0] });
   } catch (error) {
     console.error('获取设置失败:', error);
-    return NextResponse.json({ success: false, error: '获取设置失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取设置失败' }, { status: 500 });
   }
 }
 
@@ -37,11 +43,11 @@ export async function PUT(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     if (!db) {
       console.error('[app-settings] 数据库未连接');
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
     
     const body = await request.json();
@@ -57,9 +63,9 @@ export async function PUT(request: NextRequest) {
     
     await db.update(appSettings).set(updateData).where(eq(appSettings.id, 'default'));
     
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ requestId: reqId(), success: true });
   } catch (error) {
     console.error('保存设置失败:', error);
-    return NextResponse.json({ success: false, error: '保存设置失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '保存设置失败' }, { status: 500 });
   }
 }

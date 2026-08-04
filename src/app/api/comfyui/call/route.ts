@@ -36,6 +36,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callComfyUI, checkComfyUIHealth } from '@/lib/comfyui-call-service';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('comfyui-call');
 
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
     // 1. 验证登录 (可选，公开接口可以跳过)
     // const payload = await getCurrentUser(request);
     // if (!payload) {
-    //   return NextResponse.json({ success: false, error: '请先登录' }, { status: 401 });
+    //   return NextResponse.json({ requestId: reqId(), success: false, error: '请先登录' }, { status: 401 });
     // }
 
     // 2. 解析请求
@@ -73,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     if (!featureId) {
       return NextResponse.json(
-        { success: false, error: '缺少 featureId 参数' },
+        {  success: false, error: '缺少 featureId 参数' },
         { status: 400 }
       );
     }
@@ -98,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     // 4. 返回结果
     return NextResponse.json({
-      success: result.success,
+      requestId: reqId(), success: result.success,
       source: result.source,
       images: result.images,
       error: result.error,
@@ -111,7 +117,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('ComfyUI 执行失败', error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : '执行失败' },
+      {  success: false, error: error instanceof Error ? error.message : '执行失败' },
       { status: 500 }
     );
   }
@@ -129,7 +135,7 @@ export async function GET(request: NextRequest) {
     const result = await checkComfyUIHealth(connectionId);
 
     return NextResponse.json({
-      online: result.online,
+      requestId: reqId(), online: result.online,
       connection: result.connection ? {
         id: result.connection.id,
         name: result.connection.name,
@@ -142,7 +148,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     return NextResponse.json(
-      { online: false, error: error instanceof Error ? error.message : '检查失败' },
+      {  online: false, error: error instanceof Error ? error.message : '检查失败' },
       { status: 500 }
     );
   }

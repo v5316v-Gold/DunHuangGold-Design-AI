@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 // 用户设置存储（内存中，生产环境应使用数据库）
 const userSettings: Record<string, {
@@ -14,7 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     const settings = userSettings[payload.userId] || {
@@ -25,10 +31,10 @@ export async function GET(request: NextRequest) {
       publicHistory: false,
     };
 
-    return NextResponse.json({ success: true, data: settings });
+    return NextResponse.json({ requestId: reqId(), success: true, data: settings });
   } catch (error) {
     console.error('[User Settings GET] Error:', error);
-    return NextResponse.json({ success: false, error: '获取设置失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '获取设置失败' }, { status: 500 });
   }
 }
 
@@ -36,7 +42,7 @@ export async function PUT(request: NextRequest) {
   try {
     const payload = await getCurrentUser(request);
     if (!payload) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -60,9 +66,9 @@ export async function PUT(request: NextRequest) {
     if (publicProfile !== undefined) userSettings[payload.userId].publicProfile = publicProfile;
     if (publicHistory !== undefined) userSettings[payload.userId].publicHistory = publicHistory;
 
-    return NextResponse.json({ success: true, data: userSettings[payload.userId] });
+    return NextResponse.json({ requestId: reqId(), success: true, data: userSettings[payload.userId] });
   } catch (error) {
     console.error('[User Settings PUT] Error:', error);
-    return NextResponse.json({ success: false, error: '保存设置失败' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '保存设置失败' }, { status: 500 });
   }
 }

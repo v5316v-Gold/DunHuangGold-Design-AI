@@ -99,6 +99,7 @@
     "eslint-config-next": "16.1.1",
     "jsdom": "^25.0.1",
     "only-allow": "^1.2.2",
+    "playwright": "^1.62.1",
     "shadcn": "latest",
     "tailwindcss": "^4",
     "tsup": "^8.3.5",

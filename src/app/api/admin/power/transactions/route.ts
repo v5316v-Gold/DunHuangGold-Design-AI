@@ -3,6 +3,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { powerTransactions } from '@/db/schema/power-transactions';
 import { desc, eq, and, gte, lte, like, or } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +26,7 @@ export async function GET(request: NextRequest) {
     
     // 权限检查
     if (!payload || payload.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '权限不足' }, { status: 403 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '权限不足' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -66,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     // 检查数据库连接
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库未连接' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库未连接' }, { status: 500 });
     }
 
     // 查询数据
@@ -87,7 +93,7 @@ export async function GET(request: NextRequest) {
     const total = countResult.length;
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         transactions,
         pagination: {
@@ -100,6 +106,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Power Transactions] 获取流水失败:', error);
-    return NextResponse.json({ success: false, error: '服务器错误' }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '服务器错误' }, { status: 500 });
   }
 }

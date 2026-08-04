@@ -5,6 +5,12 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { users, powerLogs } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 export const dynamic = 'force-dynamic';
 
 /**
@@ -16,13 +22,13 @@ export async function GET(request: NextRequest) {
     const payload = await getCurrentUser(request);
 
     if (!payload) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     // 开发模式返回模拟数据
     if (!db) {
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: {
           power: 100,
           logs: [],
@@ -38,7 +44,7 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (!user) {
-      return NextResponse.json({ success: false, error: '用户不存在' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '用户不存在' }, { status: 404 });
     }
 
     // 获取最近算力日志
@@ -50,14 +56,14 @@ export async function GET(request: NextRequest) {
       .limit(50);
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         power: user.power,
         logs,
       },
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
   }
 }
 
@@ -71,20 +77,20 @@ export async function POST(request: NextRequest) {
     const payload = await getCurrentUser(request);
 
     if (!payload) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
 
     const body = await request.json();
     const { action, amount, reason, relatedId } = body;
 
     if (!action || !amount) {
-      return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少参数' }, { status: 400 });
     }
 
     // 开发模式：直接返回成功
     if (!db) {
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: { power: 100 - amount },
         message: '算力扣除成功（开发模式）',
       });
@@ -98,7 +104,7 @@ export async function POST(request: NextRequest) {
       .limit(1);
 
     if (!user) {
-      return NextResponse.json({ success: false, error: '用户不存在' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '用户不存在' }, { status: 404 });
     }
 
     let newPower: number;
@@ -106,7 +112,7 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'deduct':
         if (user.power < amount) {
-          return NextResponse.json({ success: false, error: '算力不足' }, { status: 400 });
+          return NextResponse.json({ requestId: reqId(), success: false, error: '算力不足' }, { status: 400 });
         }
         newPower = user.power - amount;
         break;
@@ -120,7 +126,7 @@ export async function POST(request: NextRequest) {
         break;
 
       default:
-        return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '未知操作' }, { status: 400 });
     }
 
     // 更新算力
@@ -140,11 +146,11 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: { power: newPower },
       message: '操作成功',
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
   }
 }

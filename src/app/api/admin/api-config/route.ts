@@ -21,6 +21,12 @@ import { apiConfigs } from '@/db/schema';
 import { sanitizeError } from '@/lib/validators';
 import { eq } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
+import { randomUUID } from 'crypto';
+
+// Phase 3.6：统一 requestId 注入（envelope 可追踪性）
+function reqId(): string {
+  return `req_${randomUUID()}`;
+}
 
 const logger = createLogger('api-config');
 
@@ -32,7 +38,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
@@ -40,15 +46,15 @@ export async function GET(request: NextRequest) {
     // 获取数据库中的所有API配置（用于API管理器）
     if (action === 'list') {
       if (!db) {
-        return NextResponse.json({ success: true, data: [] });
+        return NextResponse.json({ requestId: reqId(), success: true, data: [] });
       }
       try {
         const configs = await db.select().from(apiConfigs);
-        return NextResponse.json({ success: true, data: configs });
+        return NextResponse.json({ requestId: reqId(), success: true, data: configs });
       } catch (error) {
         const errorMessage = sanitizeError(error, '操作失败').message;
         if (errorMessage.includes('does not exist')) {
-          return NextResponse.json({ success: true, data: [] });
+          return NextResponse.json({ requestId: reqId(), success: true, data: [] });
         }
         throw error;
       }
@@ -123,15 +129,15 @@ export async function GET(request: NextRequest) {
       const id = searchParams.get('id')!;
       const config = coreApiConfigs[id];
       if (!config) {
-        return NextResponse.json({ success: false, error: '配置不存在' }, { status: 404 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '配置不存在' }, { status: 404 });
       }
-      return NextResponse.json({ success: true, data: config });
+      return NextResponse.json({ requestId: reqId(), success: true, data: config });
     }
 
     // 获取模块映射关系
     if (action === 'mapping') {
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: {
           configs: coreApiConfigs,
           mapping: featureApiMapping,
@@ -146,7 +152,7 @@ export async function GET(request: NextRequest) {
     console.log('[api-config] 3d-modeling config:', JSON.stringify(coreApiConfigs['3d-modeling']?.cloud || {}, null, 2));
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: {
         configs: coreApiConfigs,
         features: featureConfigs,
@@ -154,7 +160,7 @@ export async function GET(request: NextRequest) {
       } as ApiMapping
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
   }
 }
 
@@ -163,7 +169,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     const body = await request.json();
     const { action, id, config, source } = body;
@@ -173,7 +179,7 @@ export async function POST(request: NextRequest) {
       setGlobalPowerSource(source as PowerSource);
       
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         data: { globalSource: source },
         message: `已切换到${source === 'cloud' ? '云算力' : '本地算力'}`
       });
@@ -184,7 +190,7 @@ export async function POST(request: NextRequest) {
       const newSource = toggleApiSource(id, source);
       
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         data: { id, source: newSource },
         message: `已切换到${newSource === 'cloud' ? '云算力' : '本地算力'}`
       });
@@ -194,7 +200,7 @@ export async function POST(request: NextRequest) {
     if (action === 'test' && id) {
       const apiConfig = coreApiConfigs[id];
       if (!apiConfig) {
-        return NextResponse.json({ success: false, error: '配置不存在' }, { status: 404 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '配置不存在' }, { status: 404 });
       }
 
       const testSourceType = source as PowerSource || apiConfig.source;
@@ -202,8 +208,8 @@ export async function POST(request: NextRequest) {
       // 测试本地服务
       if (testSourceType === 'local') {
         if (!apiConfig.local.service) {
-          return NextResponse.json({
-            success: false,
+          return NextResponse.json({ 
+            requestId: reqId(), success: false,
             error: '未配置本地服务',
           });
         }
@@ -225,8 +231,8 @@ export async function POST(request: NextRequest) {
           apiConfig.lastTested = new Date().toISOString();
           apiConfig.localTestResult = response.ok ? 'success' : 'failed';
 
-          return NextResponse.json({
-            success: response.ok,
+          return NextResponse.json({ 
+            requestId: reqId(), success: response.ok,
             data: { status: response.status },
             message: response.ok ? '本地服务连接正常' : `本地服务返回 ${response.status}`,
           });
@@ -234,8 +240,8 @@ export async function POST(request: NextRequest) {
           apiConfig.lastTested = new Date().toISOString();
           apiConfig.localTestResult = 'failed';
 
-          return NextResponse.json({
-            success: false,
+          return NextResponse.json({ 
+            requestId: reqId(), success: false,
             error: (testError instanceof Error ? testError.message : String(testError)) || '本地服务测试失败',
           });
         }
@@ -247,7 +253,7 @@ export async function POST(request: NextRequest) {
         apiConfig.cloudTestResult = 'success';
 
         return NextResponse.json({
-          success: true,
+          requestId: reqId(), success: true,
           data: {
             ok: true,
             testedAt: apiConfig.lastTested,
@@ -259,7 +265,7 @@ export async function POST(request: NextRequest) {
         apiConfig.cloudTestResult = 'failed';
 
         return NextResponse.json({
-          success: false,
+          requestId: reqId(), success: false,
           error: (testError instanceof Error ? testError.message : String(testError)) || '云端服务测试失败',
         });
       }
@@ -269,7 +275,7 @@ export async function POST(request: NextRequest) {
     if (action === 'update-local-service' && id && config) {
       const apiConfig = coreApiConfigs[id];
       if (!apiConfig) {
-        return NextResponse.json({ success: false, error: '配置不存在' }, { status: 404 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '配置不存在' }, { status: 404 });
       }
 
       const host = config.host || '127.0.0.1';
@@ -288,7 +294,7 @@ export async function POST(request: NextRequest) {
       }
       
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         data: apiConfig,
         message: '本地服务配置已更新'
       });
@@ -298,7 +304,7 @@ export async function POST(request: NextRequest) {
     if (action === 'update-cloud-service' && id && config) {
       const apiConfig = coreApiConfigs[id];
       if (!apiConfig) {
-        return NextResponse.json({ success: false, error: '配置不存在' }, { status: 404 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '配置不存在' }, { status: 404 });
       }
 
       // 更新内存配置
@@ -333,7 +339,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         data: apiConfig,
         message: saved ? '配置已保存到数据库' : '配置已更新（仅在内存中）'
       });
@@ -343,14 +349,14 @@ export async function POST(request: NextRequest) {
     if (action === 'update' && id && config) {
       const existingConfig = coreApiConfigs[id];
       if (!existingConfig) {
-        return NextResponse.json({ success: false, error: '配置不存在' }, { status: 404 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '配置不存在' }, { status: 404 });
       }
 
       // 合并配置
       Object.assign(existingConfig, config);
       
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         data: existingConfig,
         message: '配置已更新'
       });
@@ -360,13 +366,13 @@ export async function POST(request: NextRequest) {
     if (action === 'toggle' && id) {
       const apiConfig = coreApiConfigs[id];
       if (!apiConfig) {
-        return NextResponse.json({ success: false, error: '配置不存在' }, { status: 404 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '配置不存在' }, { status: 404 });
       }
 
       apiConfig.enabled = !apiConfig.enabled;
       
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         data: apiConfig,
         message: apiConfig.enabled ? 'API已启用' : 'API已禁用'
       });
@@ -386,7 +392,7 @@ export async function POST(request: NextRequest) {
       }
       
       return NextResponse.json({ 
-        success: true, 
+        requestId: reqId(), success: true, 
         data: results,
         message: '批量更新完成'
       });
@@ -395,7 +401,7 @@ export async function POST(request: NextRequest) {
     // 创建或更新API配置到数据库
     if (action === 'create' && id && body) {
       if (!db) {
-        return NextResponse.json({ success: false, error: '数据库不可用' }, { status: 500 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '数据库不可用' }, { status: 500 });
       }
 
       // 检查是否已存在
@@ -447,7 +453,7 @@ export async function POST(request: NextRequest) {
       const configs = await db.select().from(apiConfigs).where(eq(apiConfigs.id, id)).limit(1);
 
       return NextResponse.json({
-        success: true,
+        requestId: reqId(), success: true,
         data: configs[0],
         message: existing.length > 0 ? 'API配置已更新' : 'API配置已创建'
       });
@@ -456,15 +462,15 @@ export async function POST(request: NextRequest) {
     // 删除 API 配置
     if (action === 'delete' && id) {
       if (!db) {
-        return NextResponse.json({ success: false, error: '数据库不可用' }, { status: 500 });
+        return NextResponse.json({ requestId: reqId(), success: false, error: '数据库不可用' }, { status: 500 });
       }
       await db.delete(apiConfigs).where(eq(apiConfigs.id, id));
-      return NextResponse.json({ success: true, message: 'API配置已删除' });
+      return NextResponse.json({ requestId: reqId(), success: true, message: 'API配置已删除' });
     }
 
-    return NextResponse.json({ success: false, error: '未知操作' }, { status: 400 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '未知操作' }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
   }
 }
 
@@ -473,17 +479,17 @@ export async function PUT(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     const body = await request.json();
     const { id, config } = body;
 
     if (!id || !config) {
-      return NextResponse.json({ success: false, error: '缺少参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少参数' }, { status: 400 });
     }
 
     if (!coreApiConfigs[id]) {
-      return NextResponse.json({ success: false, error: '配置不存在' }, { status: 404 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '配置不存在' }, { status: 404 });
     }
 
     // 完全替换配置
@@ -494,12 +500,12 @@ export async function PUT(request: NextRequest) {
     };
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       data: coreApiConfigs[id],
       message: '配置已更新'
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
   }
 }
 
@@ -508,26 +514,26 @@ export async function DELETE(request: NextRequest) {
   try {
     const user = await getCurrentUser(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: '未登录' }, { status: 401 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '未登录' }, { status: 401 });
     }
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ success: false, error: '缺少ID参数' }, { status: 400 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少ID参数' }, { status: 400 });
     }
 
     if (!db) {
-      return NextResponse.json({ success: false, error: '数据库不可用' }, { status: 500 });
+      return NextResponse.json({ requestId: reqId(), success: false, error: '数据库不可用' }, { status: 500 });
     }
 
     await db.delete(apiConfigs).where(eq(apiConfigs.id, id));
 
     return NextResponse.json({
-      success: true,
+      requestId: reqId(), success: true,
       message: 'API配置已删除'
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
+    return NextResponse.json({ requestId: reqId(), success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
   }
 }
