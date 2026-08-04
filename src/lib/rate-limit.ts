@@ -239,11 +239,21 @@ export function rateLimitResponse(result: RateLimitResult) {
 }
 
 /** 常用限速预设（可按需调整） */
-// 登录注册：严格限制，5 分钟 10 次
-export const AUTH_LIMIT = { limit: 10, window: 5 * 60 * 1000 }
+// 登录注册：严格限制，5 分钟 10 次（生产）
+// dev/test 环境：放宽到 10000 次（避免 e2e 测试与本地开发被误伤）
+const IS_PROD = process.env.NODE_ENV === 'production';
+export const AUTH_LIMIT = IS_PROD
+  ? { limit: 10, window: 5 * 60 * 1000 }
+  : { limit: 10000, window: 5 * 60 * 1000 };
 // 通用 API：5 分钟 60 次
-export const API_LIMIT = { limit: 60, window: 5 * 60 * 1000 }
+export const API_LIMIT = IS_PROD
+  ? { limit: 60, window: 5 * 60 * 1000 }
+  : { limit: 100000, window: 5 * 60 * 1000 };
 // 敏感操作（上传/生成）：5 分钟 30 次
-export const WRITE_LIMIT = { limit: 30, window: 5 * 60 * 1000 }
+export const WRITE_LIMIT = IS_PROD
+  ? { limit: 30, window: 5 * 60 * 1000 }
+  : { limit: 100000, window: 5 * 60 * 1000 };
 // 宽松限制：5 分钟 300 次
-export const LOOSE_LIMIT = { limit: 300, window: 5 * 60 * 1000 }
+export const LOOSE_LIMIT = IS_PROD
+  ? { limit: 300, window: 5 * 60 * 1000 }
+  : { limit: 1000000, window: 5 * 60 * 1000 };

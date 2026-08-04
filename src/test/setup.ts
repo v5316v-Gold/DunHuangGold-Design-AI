@@ -8,7 +8,8 @@ process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
 // JWT_SECRET 必须 >= 32 字符，否则 auth.ts 会拒绝启动
 process.env.JWT_SECRET = 'test-secret-that-is-long-enough-for-jwt-validation-32chars';
 process.env.NODE_ENV = 'test';
-process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+// E2E_BASE_URL 优先（避免改硬编码默认值），默认 localhost:5000（dev server）
+process.env.NEXT_PUBLIC_APP_URL = process.env.E2E_BASE_URL || 'http://localhost:5000';
 process.env.COMFYUI_HOST = 'http://localhost:8188';
 
 // ============================================================

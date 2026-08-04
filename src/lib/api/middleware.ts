@@ -152,6 +152,8 @@ export function withRateLimit(
   opts: { windowMs?: number; max?: number; perPath?: boolean } = {}
 ) {
   const config = { ...RATE_LIMIT_DEFAULTS, ...opts };
+  // dev/test 环境：跳过 rate limit（避免 e2e 测试与本地开发被误伤）
+  const skipRateLimit = process.env.NODE_ENV !== 'production';
   return (handler: Handler) =>
     async (request: NextRequest, input?: unknown) => {
       const requestId = requestIdOf(request);
@@ -159,14 +161,16 @@ export function withRateLimit(
       const key = `ratelimit:${ip}${config.perPath ? ':' + new URL(request.url).pathname : ''}`; // 与 @/lib/rate-limit 同前缀，共享计数
 
       try {
-        const redis = getRedis();
-        const count = await redis.incr(key);
-        if (count === 1) await redis.expire(key, Math.ceil(config.windowMs / 1000));
-        if (count > config.max) {
-          return fail(API_ERROR_CODES.RATE_LIMITED, '请求过于频繁，请稍后再试', {
-            requestId,
-            details: { limit: config.max, windowMs: config.windowMs },
-          });
+        if (!skipRateLimit) {
+          const redis = getRedis();
+          const count = await redis.incr(key);
+          if (count === 1) await redis.expire(key, Math.ceil(config.windowMs / 1000));
+          if (count > config.max) {
+            return fail(API_ERROR_CODES.RATE_LIMITED, '请求过于频繁，请稍后再试', {
+              requestId,
+              details: { limit: config.max, windowMs: config.windowMs },
+            });
+          }
         }
       } catch (err) {
         // Redis 失败 → 放行（不阻塞业务，fail-open）

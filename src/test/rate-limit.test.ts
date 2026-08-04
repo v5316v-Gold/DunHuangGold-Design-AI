@@ -67,13 +67,15 @@ describe('rateLimit — 基础行为', () => {
     expect(writeOk.success).toBe(true); // WRITE_LIMIT 是独立的
   });
 
-  test('WRITE_LIMIT 默认 5 分钟 30 次', () => {
-    expect(WRITE_LIMIT.limit).toBe(30);
+  test('WRITE_LIMIT 默认 5 分钟 30 次（生产）；dev/test 放宽到 100000', () => {
+    const isProd = process.env.NODE_ENV === 'production';
+    expect(WRITE_LIMIT.limit).toBe(isProd ? 30 : 100000);
     expect(WRITE_LIMIT.window).toBe(5 * 60 * 1000);
   });
 
-  test('AUTH_LIMIT 默认 5 分钟 10 次', () => {
-    expect(AUTH_LIMIT.limit).toBe(10);
+  test('AUTH_LIMIT 默认 5 分钟 10 次（生产）；dev/test 放宽到 10000', () => {
+    const isProd = process.env.NODE_ENV === 'production';
+    expect(AUTH_LIMIT.limit).toBe(isProd ? 10 : 10000);
     expect(AUTH_LIMIT.window).toBe(5 * 60 * 1000);
   });
 });

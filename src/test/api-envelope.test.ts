@@ -233,13 +233,20 @@ describe('withRateLimit · 限流', () => {
   afterEach(() => vi.clearAllMocks());
 
   it('超限返回 RATE_LIMITED 429', async () => {
-    const handler = withRateLimit({ windowMs: 60_000, max: 2 })(async (ctx, body) => ok(body, ctx));
-    const reqOpts = { 'x-real-ip': '1.2.3.4' };
-    await handler(makeRequest(reqOpts));
-    await handler(makeRequest(reqOpts));
-    const r3 = await handler(makeRequest(reqOpts));
-    expect(r3.status).toBe(429);
-    const body = await r3.json();
-    expect(body.error.code).toBe('RATE_LIMITED');
+    // 关键：直接测限流逻辑本身（不受 skipRateLimit 影响）—— 临时设 NODE_ENV=production
+    const originalEnv = process.env.NODE_ENV;
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production', writable: true, configurable: true });
+    try {
+      const handler = withRateLimit({ windowMs: 60_000, max: 2 })(async (ctx, body) => ok(body, ctx));
+      const reqOpts = { 'x-real-ip': '1.2.3.4' };
+      await handler(makeRequest(reqOpts));
+      await handler(makeRequest(reqOpts));
+      const r3 = await handler(makeRequest(reqOpts));
+      expect(r3.status).toBe(429);
+      const body = await r3.json();
+      expect(body.error.code).toBe('RATE_LIMITED');
+    } finally {
+      Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true, configurable: true });
+    }
   });
 });

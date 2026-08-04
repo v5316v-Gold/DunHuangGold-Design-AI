@@ -79,7 +79,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - name: Run unit tests (node env)
-        run: pnpm run test:node
+        run: NODE_ENV=development pnpm run test:node
 
   # ===== 4. 生产构建（验证 standalone 可生成） =====
   build:
