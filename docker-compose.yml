@@ -72,6 +72,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
+      # 关键修复：Next standalone server.js 用 process.env.HOSTNAME || '0.0.0.0'
+      # Docker 默认把 HOSTNAME 设为容器 ID，导致监听容器 IP 而非 0.0.0.0
+      # → healthcheck 用 localhost 连不上。这里显式覆盖为 0.0.0.0
+      HOSTNAME: 0.0.0.0
       ENTRYPOINT_MIGRATE: "1"
       RUN_SEED: "${RUN_SEED:-0}" 
       DATABASE_URL: ${DATABASE_URL:-postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang}
