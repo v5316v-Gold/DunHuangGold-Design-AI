@@ -281,6 +281,54 @@ function injectParamsToWorkflow(
   return modified;
 }
 
+/**
+ * 上传图片到 ComfyUI（base64 → /upload/image）
+ * 返回上传后的文件名（LoadImage 节点 image 参数使用）
+ */
+async function uploadImageToComfyUI(
+  host: string,
+  imageData: string,
+  authToken?: string
+): Promise<{ success: boolean; filename?: string; error?: string }> {
+  try {
+    // 提取 base64（支持 data:image/png;base64,xxx 或纯 base64）
+    const m = imageData.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/);
+    const b64 = m ? m[1] : imageData;
+    const buffer = Buffer.from(b64, 'base64');
+
+    // ComfyUI /upload/image 接口：multipart form-data, 字段名 image, 可加 overwrite=1
+    const form = new FormData();
+    const blob = new Blob([buffer]);
+    form.append('image', blob, `input_${Date.now()}.png`);
+    form.append('overwrite', 'true');
+
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+    const response = await fetch(`http://${host}/upload/image`, {
+      method: 'POST',
+      body: form,
+      headers,
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      return { success: false, error: `上传图片失败 HTTP ${response.status}: ${err}` };
+    }
+
+    const data = (await response.json()) as { name?: string };
+    if (!data.name) {
+      return { success: false, error: '上传图片响应缺少文件名' };
+    }
+    return { success: true, filename: data.name };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '上传图片失败',
+    };
+  }
+}
+
 // ==================== 配置获取 ====================
 
 /**
@@ -502,10 +550,25 @@ export async function callComfyUI(options: ComfyUICallOptions): Promise<ComfyUIC
   }
 
   // 4. 注入参数到工作流
+  //    若含 base64 图片，先上传到 ComfyUI 换取文件名（LoadImage 节点需要）
+  let callOptions = { ...options };
+  if (options.inputImage && options.inputImage.startsWith('data:')) {
+    const upload = await uploadImageToComfyUI(host, options.inputImage, connection.authToken);
+    if (!upload.success || !upload.filename) {
+      return {
+        success: false,
+        source: 'local',
+        error: upload.error || '上传图片失败',
+        usedConnection: { id: connection.id, name: connection.name, host },
+      };
+    }
+    callOptions = { ...callOptions, inputImage: upload.filename };
+  }
+
   const workflow = injectParamsToWorkflow(
     workflowConfig.workflowJson,
     workflowConfig.nodeMapping,
-    options,
+    callOptions,
     workflowConfig.defaultParams,
     workflowConfig.fixedParams
   );

@@ -36,6 +36,9 @@ services:
       # 演示/开发环境：NODE_ENV=development 避免功能被"未配置 API Key"锁死
       # （isFeatureEnabled 在非 production 下放行功能，仅提示调用会失败）
       NODE_ENV: development
+      # ComfyUI 地址：web 容器内访问宿主机 ComfyUI（localhost:8188 指向容器自身）
+      # host.docker.internal 是 Docker Desktop Windows 的宿主机别名
+      COMFYUI_HOST: http://host.docker.internal:8188
 
   # ===== Worker：同样覆盖为服务名 =====
   worker:

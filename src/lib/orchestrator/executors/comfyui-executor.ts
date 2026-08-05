@@ -9,9 +9,15 @@ export class ComfyUIExecutor implements Executor {
   }
   async execute(req: FeatureExecutionRequest): Promise<FeatureExecutionResult> {
     const started = Date.now();
+    const inputs = (req.inputs as Record<string, unknown>) || {};
+    // 兼容：前端传 image 字段（base64），callComfyUI 期望 inputImage
+    const callInputs: Record<string, unknown> = { ...inputs };
+    if (inputs.image !== undefined && callInputs.inputImage === undefined) {
+      callInputs.inputImage = inputs.image;
+    }
     const result = await callComfyUI({
       featureId: req.featureId,
-      ...(req.inputs as Record<string, unknown>),
+      ...callInputs,
     });
     if (!result.success)
       return {
