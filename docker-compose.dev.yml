@@ -1,0 +1,96 @@
+# Phase 1 · Development Override
+# 用途：本地开发时覆盖 docker-compose.yml 里的生产配置
+# 用法：docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# 主要覆盖点：
+# 1. 用 builder 阶段（保留 node_modules，可跑 pnpm dev）
+# 2. 暴露所有端口到 0.0.0.0
+# 3. 挂载本地代码目录（热重载）
+# 4. dev 模式不自动重启
+#
+# 注意：项目目前用 pnpm dev（Node 进程直跑），而不是容器化 dev
+#       所以这个 dev override 主要用于把 PG/Redis 起在 docker 里
+#       web 和 worker 可以选择不起，靠 pnpm dev 跑在主机
+
+name: dunhuang-ai-dev
+
+# 注释 web 和 worker：dev 模式直接用 pnpm dev 跑在主机上
+# 如需容器化，需拉取 node:20-alpine（当前镜像缺失）
+
+services:
+  # ===== PostgreSQL（dev 模式端口暴露）=====
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: dunhuang1
+      POSTGRES_PASSWORD: dunhuang2026
+      POSTGRES_DB: dunhuang
+
+  # ===== Redis =====
+  redis:
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+  # ===== MinIO（dev 模式端口暴露到主机，方便外部工具调试）=====
+  minio:
+    image: minio/minio:latest
+    container_name: dunhuang-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: dunhuang
+      MINIO_ROOT_PASSWORD: dunhuang2026
+    networks:
+      - dunhuang-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== Web（注释掉：dev 模式直接用 pnpm dev 跑在主机上）=====
+  # 取消注释 = 在容器里跑 Next.js dev server（需加挂载）
+  # web:
+  #   build:
+  #     target: builder  # 用 builder 阶段（含 node_modules）
+  #   environment:
+  #     NODE_ENV: development
+  #     PORT: 5000
+  #     DATABASE_URL: postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang
+  #     REDIS_URL: redis://redis:6379
+  #   volumes:
+  #     - ./src:/app/src
+  #     - ./public:/app/public
+  #     - ./next.config.ts:/app/next.config.ts
+  #   ports:
+  #     - "5000:5000"
+  #   command: ["pnpm", "dev"]
+  #   restart: "no"
+
+  # ===== Worker（dev 模式注释掉；用 pnpm worker 跑在主机）=====
+  # worker:
+  #   build:
+  #     target: builder
+  #   environment:
+  #     NODE_ENV: development
+  #     DATABASE_URL: postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang
+  #     REDIS_URL: redis://redis:6379
+  #   volumes:
+  #     - ./workers:/app/workers
+  #     - ./src:/app/src
+  #   command: ["pnpm", "worker"]
+  #   restart: "no"
+
+volumes:
+  postgres_data:
+    name: dunhuang-postgres-data
+  redis_data:
+    name: dunhuang-redis-data
+  minio_data:
+    name: dunhuang-minio-data

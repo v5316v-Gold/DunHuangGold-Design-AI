@@ -28,8 +28,9 @@ services:
       - postgres_data:/var/lib/postgresql
       - ./src/db/migrations:/docker-entrypoint-initdb.d:ro
     ports:
-      # 不暴露 5432 到 host（仅内部网络）
-      - "127.0.0.1:5432:5432"  # 仅 loopback 访问（dev 调试用）
+      # dev 环境固定端口（pnpm dev 需要 localhost 连接）
+      # 注意：Docker Desktop + WSL2 下用 0.0.0.0 比 127.0.0.1 端口转发更可靠
+      - "0.0.0.0:5432:5432"
     networks:
       - dunhuang-net
     healthcheck:
@@ -49,7 +50,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "127.0.0.1:6379:6379"
+      - "0.0.0.0:6379:6379"
     networks:
       - dunhuang-net
     healthcheck:
