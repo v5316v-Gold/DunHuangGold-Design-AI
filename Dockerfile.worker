@@ -1,5 +1,5 @@
-# 敦煌金 AI 平台 - Worker 专用 Dockerfile
-# 用途：独立部署 BullMQ orchestrator-worker（docker-compose 的 worker service）
+# 敦煌金 AI 平台 - Worker 专用 Dockerfile（Phase 9.15 优化）
+# 用 alpine + 自装 Node（避免拉 node:20-alpine 慢）
 #
 # 构建：
 #   docker build -f Dockerfile.worker -t dunhuang-ai-worker:latest .
@@ -7,22 +7,27 @@
 # 运行：
 #   docker run --rm \
 #     -e REDIS_URL=redis://host:6379 \
-#     -e DATABASE_URL=postgresql://user:pass@host:5432/db \
+#     -e DATABASE_URL=postgresql://user:***@host:5432/db \
 #     -e JWT_SECRET=<32+ chars> \
 #     -e API_KEY_ENCRYPTION_KEY=<32 bytes hex> \
 #     dunhuang-ai-worker:latest
 
 # 阶段1: 依赖
-FROM node:20-alpine AS deps
+FROM alpine:3.20 AS deps
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+# 国内镜像源加速
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/repositories && \
+    apk add --no-cache nodejs npm bash && \
+    npm install -g pnpm@9 --registry=https://registry.npmmirror.com
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com
 
 # 阶段2: 构建 worker 产物
-FROM node:20-alpine AS builder
+FROM alpine:3.20 AS builder
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/repositories && \
+    apk add --no-cache nodejs npm bash && \
+    npm install -g pnpm@9 --registry=https://registry.npmmirror.com
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -37,15 +42,16 @@ RUN ./node_modules/.bin/tsup workers/orchestrator-worker.ts \
   --external bcryptjs \
   --external ioredis
 
-# 阶段3: 运行（最小镜像，只含 worker 产物 + 运行时依赖）
-FROM node:20-alpine AS runner
+# 阶段3: 运行（最小镜像）
+FROM alpine:3.20 AS runner
 WORKDIR /app
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/repositories && \
+    apk add --no-cache nodejs npm bash
+
 ENV NODE_ENV=production
 
 # 复制 worker 产物
 COPY --from=builder /app/dist-workers ./dist-workers
-
-# 复制运行时依赖（pg/bcryptjs/ioredis 等 external 模块需要）
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
@@ -57,12 +63,8 @@ COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoin
 RUN chmod +x /app/scripts/docker-entrypoint.sh
 
 # 非 root 用户
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 worker
+RUN addgroup -S nodejs -g 1001 && adduser -S worker -u 1001
 USER worker
-
-# 健康检查：进程存活即可（worker 无 HTTP 端口）
-# 通过 node 进程检查（简单：确认进程存在）
 
 # 启动前自动迁移（ENTRYPOINT_MIGRATE=0 可跳过）
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
