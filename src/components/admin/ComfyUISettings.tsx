@@ -26,7 +26,7 @@ export default function ComfyUISettings() {
   const checkOverallStatus = async () => {
     setChecking(true);
     try {
-      const res = await fetch('/api/comfyui/call');
+      const res = await fetch('/api/comfyui/call', { credentials: 'include' });
       const data = await res.json();
       setOverallStatus(data);
     } catch (e) {

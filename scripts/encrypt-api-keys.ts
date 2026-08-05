@@ -21,7 +21,7 @@
  *   DATABASE_URL=... API_KEY_ENCRYPTION_KEY=<32字节hex> npx tsx scripts/encrypt-api-keys.ts --yes
  */
 
-import { createDecipheriv } from 'crypto';
+import { createDecipheriv, createCipheriv, randomBytes } from 'crypto';
 import { Pool } from 'pg';
 import 'dotenv/config';
 
@@ -45,7 +45,6 @@ function getEncryptionKey(): Buffer {
 
 /** 加密 API Key（AES-256-GCM，iv(12) + tag(16) + data） */
 function encryptApiKey(plain: string): string {
-  const { createCipheriv, randomBytes } = require('crypto') as typeof import('crypto');
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
@@ -162,7 +161,7 @@ async function main() {
   if (!SKIP_CONFIRM) {
     console.log('\n输入 yes 继续，或 Ctrl+C 取消:');
     // 读取 stdin
-    const readline = require('readline');
+    const readline = await import('readline');
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     const answer = await new Promise<string>((resolve) =>
       rl.question('> ', resolve)

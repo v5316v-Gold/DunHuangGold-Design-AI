@@ -85,10 +85,12 @@ export default function FeaturesManagementPage() {
 
       // 并行加载
       const [statusRes, costRes] = await Promise.all([
-        fetch('/api/admin/features-status', { headers })
+        fetch('/api/admin/features-status', { credentials: 'include', headers })
+        
           .then((r) => r.json())
           .catch(() => null),
-        fetch('/api/admin/feature-costs', { headers })
+        fetch('/api/admin/feature-costs', { credentials: 'include', headers })
+        
           .then((r) => r.json())
           .catch(() => null),
       ]);
@@ -176,6 +178,7 @@ export default function FeaturesManagementPage() {
           ? localStorage.getItem('dunhuang_token') || localStorage.getItem('auth_token')
           : null;
       const res = await fetch('/api/admin/feature-costs', {
+        credentials: 'include',
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

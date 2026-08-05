@@ -205,6 +205,7 @@ export default function GalleryPage() {
       const authHeader = getAuthHeader();
       // 批量删除 API
       const response = await fetch('/api/works/batch-delete', {
+        credentials: 'include',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -234,7 +235,7 @@ export default function GalleryPage() {
     // 调用删除 API
     for (const img of images) {
       try {
-        await fetch(`/api/works/${img.id}`, { method: 'DELETE' });
+        await fetch(`/api/works/${img.id}`, { credentials: 'include', method: 'DELETE' });
       } catch (e) {
         console.error('删除失败:', e);
       }

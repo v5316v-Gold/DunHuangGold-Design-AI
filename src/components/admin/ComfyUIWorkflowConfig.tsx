@@ -123,8 +123,8 @@ export default function ComfyUIWorkflowConfig() {
     try {
       // 加载工作流配置
       const [configRes, connRes] = await Promise.all([
-        fetch('/api/settings/comfyui', { headers: { ...getAuthHeader() } }),
-        fetch('/api/admin/comfyui/connections', { headers: { ...getAuthHeader() } }),
+        fetch('/api/settings/comfyui', { credentials: 'include', headers: { ...getAuthHeader() } }),
+        fetch('/api/admin/comfyui/connections', { credentials: 'include', headers: { ...getAuthHeader() } }),
       ]);
       
       const configData = await configRes.json();
@@ -176,6 +176,7 @@ export default function ComfyUIWorkflowConfig() {
     setSaving(true);
     try {
       const res = await fetch('/api/settings/comfyui', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
@@ -216,6 +217,7 @@ export default function ComfyUIWorkflowConfig() {
     setTestResult(null);
     try {
       const res = await fetch('/api/comfyui/call', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({

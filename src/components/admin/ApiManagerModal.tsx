@@ -103,6 +103,7 @@ export default function ApiManagerModal({ isOpen, onClose }: ApiManagerModalProp
 
       // 加载 baidu 配置（来自 api-config 路由）
       const res = await fetch('/api/admin/api-config?action=list', {
+        credentials: 'include',
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       const data = await res.json();
@@ -122,6 +123,7 @@ export default function ApiManagerModal({ isOpen, onClose }: ApiManagerModalProp
       // 如果刚保存过（justSaved=true），跳过 reload，用内存中的值（避免 GET 不返回 apiKey 导致覆盖）
       if (!justSaved) {
         const aiRes = await fetch('/api/admin/ai-assistant-config', {
+          credentials: 'include',
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       const aiData = await aiRes.json();
@@ -197,6 +199,7 @@ export default function ApiManagerModal({ isOpen, onClose }: ApiManagerModalProp
       })() : { id, name: id, ...config, action: 'create' };
 
       const res = await fetch(apiUrl, {
+        credentials: 'include',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

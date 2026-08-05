@@ -7,6 +7,7 @@
  * 用法：npx tsx scripts/benchmark-health.ts [并发数] [总请求数]
  */
 import http from 'http';
+import { writeFileSync } from 'fs';
 
 const BASE = process.env.BENCH_URL || 'http://localhost:5000';
 const CONCURRENCY = parseInt(process.argv[2] || '20', 10);
@@ -97,7 +98,7 @@ async function main() {
     p95Ms: pct(0.95),
     p99Ms: pct(0.99),
   };
-  require('fs').writeFileSync(
+  writeFileSync(
     'docs/MIGRATION/PHASE-9-benchmark.json',
     JSON.stringify(report, null, 2)
   );

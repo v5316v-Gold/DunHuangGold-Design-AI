@@ -100,7 +100,7 @@ export default function ComfyUIWorkflowManager() {
   // 加载数据
   const loadConnections = async () => {
     try {
-      const res = await fetch('/api/admin/comfyui/connections', { headers: { ...getAuthHeader() } });
+      const res = await fetch('/api/admin/comfyui/connections', { credentials: 'include', headers: { ...getAuthHeader() } });
       const data = await res.json();
       if (data.success) {
         setConnections(data.data);
@@ -112,7 +112,7 @@ export default function ComfyUIWorkflowManager() {
 
   const loadWorkflows = async () => {
     try {
-      const res = await fetch('/api/admin/comfyui/workflows', { headers: { ...getAuthHeader() } });
+      const res = await fetch('/api/admin/comfyui/workflows', { credentials: 'include', headers: { ...getAuthHeader() } });
       const data = await res.json();
       if (data.success) {
         setWorkflows(data.data);
@@ -137,7 +137,7 @@ export default function ComfyUIWorkflowManager() {
     setTestingId(id);
     setTestResult(prev => ({ ...prev, [id]: null }));
     try {
-      const res = await fetch(`/api/admin/comfyui/connections/${id}`, { method: 'POST', headers: { ...getAuthHeader() } });
+      const res = await fetch(`/api/admin/comfyui/connections/${id}`, { credentials: 'include', method: 'POST', headers: { ...getAuthHeader() } });
       const data = await res.json();
       setTestResult(prev => ({ ...prev, [id]: data.data }));
     } catch (e) {
@@ -151,6 +151,7 @@ export default function ComfyUIWorkflowManager() {
     setSaving(true);
     try {
       const res = await fetch('/api/admin/comfyui/connections', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(conn),
@@ -172,7 +173,7 @@ export default function ComfyUIWorkflowManager() {
   const deleteConnection = async (id: string) => {
     if (!confirm('确定删除此连接？')) return;
     try {
-      await fetch(`/api/admin/comfyui/connections/${id}`, { method: 'DELETE', headers: { ...getAuthHeader() } });
+      await fetch(`/api/admin/comfyui/connections/${id}`, { credentials: 'include', method: 'DELETE', headers: { ...getAuthHeader() } });
       await loadConnections();
     } catch (e) {
       console.error('删除失败:', e);
@@ -185,6 +186,7 @@ export default function ComfyUIWorkflowManager() {
     try {
       const json = JSON.parse(workflowJsonText);
       const res = await fetch('/api/admin/comfyui/workflows/parse', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ workflow_json: json }),
@@ -205,6 +207,7 @@ export default function ComfyUIWorkflowManager() {
     setSaving(true);
     try {
       const res = await fetch('/api/admin/comfyui/workflows', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(wf),
@@ -228,7 +231,7 @@ export default function ComfyUIWorkflowManager() {
   const deleteWorkflow = async (id: string) => {
     if (!confirm('确定删除此工作流？')) return;
     try {
-      await fetch(`/api/admin/comfyui/workflows/${id}`, { method: 'DELETE', headers: { ...getAuthHeader() } });
+      await fetch(`/api/admin/comfyui/workflows/${id}`, { credentials: 'include', method: 'DELETE', headers: { ...getAuthHeader() } });
       await loadWorkflows();
     } catch (e) {
       console.error('删除失败:', e);
@@ -239,6 +242,7 @@ export default function ComfyUIWorkflowManager() {
   const toggleWorkflow = async (id: string, enabled: boolean) => {
     try {
       await fetch(`/api/admin/comfyui/workflows/${id}`, {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ action: enabled ? 'enable' : 'disable' }),
@@ -574,6 +578,7 @@ export default function ComfyUIWorkflowManager() {
                         try {
                           const json = JSON.parse(text);
                           const res = await fetch('/api/admin/comfyui/workflows/parse', {
+                            credentials: 'include',
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
                             body: JSON.stringify({ workflow_json: json }),

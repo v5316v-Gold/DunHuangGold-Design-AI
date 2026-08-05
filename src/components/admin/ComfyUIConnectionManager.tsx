@@ -40,7 +40,7 @@ export default function ComfyUIConnectionManager() {
   // 加载连接列表
   const loadConnections = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/comfyui/connections', { headers: { ...getAuthHeader() } });
+      const res = await fetch('/api/admin/comfyui/connections', { credentials: 'include', headers: { ...getAuthHeader() } });
       const data = await res.json();
       if (data.success) {
         setConnections(data.data || []);
@@ -56,7 +56,7 @@ export default function ComfyUIConnectionManager() {
   const checkConnection = useCallback(async (conn: Connection) => {
     setChecking(prev => ({ ...prev, [conn.id]: true }));
     try {
-      const res = await fetch(`/api/comfyui/call?connectionId=${conn.id}`);
+      const res = await fetch(`/api/comfyui/call?connectionId=${conn.id}`, { credentials: 'include' });
       const data = await res.json();
       setStatuses(prev => ({
         ...prev,
@@ -119,6 +119,7 @@ export default function ComfyUIConnectionManager() {
     setSaving(true);
     try {
       const res = await fetch('/api/admin/comfyui/connections', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(connData),
@@ -146,6 +147,7 @@ export default function ComfyUIConnectionManager() {
 
     try {
       const res = await fetch(`/api/admin/comfyui/connections/${conn.id}`, {
+        credentials: 'include',
         method: 'DELETE',
         headers: { ...getAuthHeader() },
       });
@@ -165,6 +167,7 @@ export default function ComfyUIConnectionManager() {
   const handleSetDefault = async (conn: Connection) => {
     try {
       const res = await fetch('/api/admin/comfyui/connections', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ ...conn, isDefault: true }),

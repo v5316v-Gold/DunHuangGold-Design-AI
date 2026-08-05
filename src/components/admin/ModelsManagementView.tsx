@@ -95,7 +95,7 @@ export default function ModelsManagementView() {
     try {
       const params = new URLSearchParams({ page: '1', pageSize: '100' });
       if (typeFilter !== 'all') params.set('type', typeFilter);
-      const res = await fetch(`/api/admin/models?${params.toString()}`);
+      const res = await fetch(`/api/admin/models?${params.toString()}`, { credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setModels(data.data?.items || []);
@@ -117,6 +117,7 @@ export default function ModelsManagementView() {
   const toggleEnabled = async (m: ModelItem) => {
     try {
       const res = await fetch('/api/admin/models', {
+        credentials: 'include',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: m.id, enabled: !m.enabled }),
@@ -138,6 +139,7 @@ export default function ModelsManagementView() {
     if (!window.confirm(msg)) return;
     try {
       const res = await fetch('/api/admin/models', {
+        credentials: 'include',
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: m.id, deleteFile: true }),
@@ -382,6 +384,7 @@ function UploadModal({
       if (metadataOnly) {
         // 仅登记元数据
         const res = await fetch('/api/admin/models', {
+          credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

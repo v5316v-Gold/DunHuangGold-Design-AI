@@ -47,6 +47,7 @@ export default function ComfyUIConfigPanel() {
   const checkConnection = async () => {
     try {
       const res = await fetch('/api/comfyui', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'health' }),
@@ -57,11 +58,13 @@ export default function ComfyUIConfigPanel() {
         // 获取更多信息
         const [sysRes, queueRes] = await Promise.all([
           fetch('/api/comfyui', {
+            credentials: 'include',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'systemInfo' }),
           }),
           fetch('/api/comfyui', {
+            credentials: 'include',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'queueStatus' }),
@@ -88,6 +91,7 @@ export default function ComfyUIConfigPanel() {
   const loadWorkflows = async () => {
     try {
       const res = await fetch('/api/comfyui', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listConfigured' }),
@@ -129,6 +133,7 @@ export default function ComfyUIConfigPanel() {
     setTesting(id);
     try {
       const res = await fetch('/api/comfyui', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

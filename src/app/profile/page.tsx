@@ -108,6 +108,7 @@ export default function ProfilePage() {
       try {
         const authHeader = getAuthHeader();
         const res = await fetch('/api/stats', {
+          credentials: 'include',
           headers: { ...authHeader },
         });
         if (res.ok) {
@@ -136,6 +137,7 @@ export default function ProfilePage() {
       try {
         const authHeader = getAuthHeader();
         const res = await fetch('/api/works?limit=50', {
+          credentials: 'include',
           headers: { ...authHeader },
         });
         if (res.ok) {
@@ -197,6 +199,7 @@ export default function ProfilePage() {
         try {
           const authHeader = getAuthHeader();
           const res = await fetch('/api/favorites', {
+            credentials: 'include',
             headers: { ...authHeader },
           });
           if (res.ok) {
@@ -260,7 +263,7 @@ export default function ProfilePage() {
       const fetchSettings = async () => {
         try {
           const authHeader = getAuthHeader();
-          const res = await fetch('/api/user/settings', { headers: { ...authHeader } });
+          const res = await fetch('/api/user/settings', { credentials: 'include', headers: { ...authHeader } });
           if (res.ok) {
             const json = await res.json();
             if (json.success) {
@@ -292,7 +295,8 @@ export default function ProfilePage() {
 
       const authHeader = getAuthHeader();
       const res = await fetch('/api/user/avatar', {
-        method: 'POST',
+              credentials: 'include',
+              method: 'POST',
         headers: { ...authHeader },
         body: formData,
       });
@@ -452,6 +456,7 @@ export default function ProfilePage() {
                         try {
                           const authHeader = getAuthHeader();
                           await fetch(`/api/favorites?workId=${item.id}`, {
+                            credentials: 'include',
                             method: 'DELETE',
                             headers: { ...authHeader },
                           });
@@ -625,6 +630,7 @@ export default function ProfilePage() {
                         try {
                           const authHeader = getAuthHeader();
                           const res = await fetch('/api/user/profile', {
+                            credentials: 'include',
                             method: 'PUT',
                             headers: { ...authHeader, 'Content-Type': 'application/json' },
                             body: JSON.stringify({ nickname: editedNickname }),
@@ -699,6 +705,7 @@ export default function ProfilePage() {
                             try {
                               const authHeader = getAuthHeader();
                               const res = await fetch('/api/user/password', {
+                                credentials: 'include',
                                 method: 'PUT',
                                 headers: { ...authHeader, 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ oldPassword, newPassword }),
@@ -748,6 +755,7 @@ export default function ProfilePage() {
                             try {
                               const authHeader = getAuthHeader();
                               await fetch('/api/user/settings', {
+                                credentials: 'include',
                                 method: 'PUT',
                                 headers: { ...authHeader, 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ darkMode: newValue }),
@@ -779,6 +787,7 @@ export default function ProfilePage() {
                             try {
                               const authHeader = getAuthHeader();
                               await fetch('/api/user/settings', {
+                                credentials: 'include',
                                 method: 'PUT',
                                 headers: { ...authHeader, 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ goldCursor: newValue }),
@@ -822,6 +831,7 @@ export default function ProfilePage() {
                             try {
                               const authHeader = getAuthHeader();
                               await fetch('/api/user/settings', {
+                                credentials: 'include',
                                 method: 'PUT',
                                 headers: { ...authHeader, 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ notifications: newValue }),
@@ -863,6 +873,7 @@ export default function ProfilePage() {
                             try {
                               const authHeader = getAuthHeader();
                               await fetch('/api/user/settings', {
+                                credentials: 'include',
                                 method: 'PUT',
                                 headers: { ...authHeader, 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ publicProfile: newValue }),
@@ -894,6 +905,7 @@ export default function ProfilePage() {
                             try {
                               const authHeader = getAuthHeader();
                               await fetch('/api/user/settings', {
+                                credentials: 'include',
                                 method: 'PUT',
                                 headers: { ...authHeader, 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ publicHistory: newValue }),
@@ -981,7 +993,7 @@ export default function ProfilePage() {
         onDelete={async (id) => {
           try {
             const authHeader = getAuthHeader();
-            const res = await fetch(`/api/works/${id}`, {
+            const res = await fetch(`/api/works/${id}`, { credentials: 'include',
               method: 'DELETE',
               headers: { ...authHeader },
             });

@@ -31,7 +31,7 @@ export default function LoraManagement() {
   const fetchLoras = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/lora');
+      const res = await fetch('/api/admin/lora', { credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setLoras(data.loras);
@@ -89,7 +89,7 @@ export default function LoraManagement() {
 
 function LoraCard({ lora, onUpdate }: { lora: Lora; onUpdate: () => void }) {
   const toggleEnabled = async () => {
-    await fetch(`/api/admin/lora/${lora.id}/toggle`, { method: 'POST' });
+    await fetch(`/api/admin/lora/${lora.id}/toggle`, { credentials: 'include', method: 'POST' });
     onUpdate();
   };
 
@@ -135,6 +135,7 @@ function CreateLoraForm({ onSuccess }: { onSuccess: () => void }) {
     setSubmitting(true);
     try {
       const res = await fetch('/api/admin/lora', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

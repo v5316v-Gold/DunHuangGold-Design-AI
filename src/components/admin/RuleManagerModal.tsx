@@ -84,6 +84,7 @@ export default function RuleManagerModal({ isOpen, onClose }: RuleManagerModalPr
     try {
       const token0 = typeof window !== 'undefined' ? localStorage.getItem('dunhuang_token') : null;
       const res = await fetch('/api/admin/rules', {
+        credentials: 'include',
         headers: { ...(token0 ? { Authorization: `Bearer ${token0}` } : {}) },
       });
       const data = await res.json();
@@ -101,6 +102,7 @@ export default function RuleManagerModal({ isOpen, onClose }: RuleManagerModalPr
     try {
       const token4 = typeof window !== 'undefined' ? localStorage.getItem('dunhuang_token') : null;
       await fetch('/api/admin/rules', {
+        credentials: 'include',
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -134,6 +136,7 @@ export default function RuleManagerModal({ isOpen, onClose }: RuleManagerModalPr
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('dunhuang_token') : null;
       const res = await fetch('/api/admin/rules', {
+        credentials: 'include',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -185,6 +188,7 @@ export default function RuleManagerModal({ isOpen, onClose }: RuleManagerModalPr
     try {
       const token2 = typeof window !== 'undefined' ? localStorage.getItem('dunhuang_token') : null;
       const res2 = await fetch('/api/admin/rules', {
+        credentials: 'include',
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -221,6 +225,7 @@ export default function RuleManagerModal({ isOpen, onClose }: RuleManagerModalPr
     try {
       const token3 = typeof window !== 'undefined' ? localStorage.getItem('dunhuang_token') : null;
       const res3 = await fetch(`/api/admin/rules?id=${id}`, {
+        credentials: 'include',
         method: 'DELETE',
         headers: { ...(token3 ? { Authorization: `Bearer ${token3}` } : {}) },
       });

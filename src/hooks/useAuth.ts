@@ -1,11 +1,16 @@
 /**
  * 认证 Hook
  * 管理用户登录状态
+ *
+ * 安全修复（P0-1）：
+ * - JWT 不再写入 localStorage（XSS 可窃取风险）
+ * - 仅通过 HttpOnly cookie（auth_token）携带，浏览器自动随请求发送
+ * - 会话恢复改为调 /api/auth/me 校验（不再信任 localStorage 的用户快照）
  */
 
 import { useState, useEffect, useCallback } from 'react';
 
-const TOKEN_KEY = 'dunhuang_token';
+// localStorage 仅缓存用户资料（非敏感信息），token 绝不下放
 const USER_KEY = 'dunhuang_user';
 
 export interface User {
@@ -37,28 +42,32 @@ interface UseAuthReturn {
 
 export function useAuth(): UseAuthReturn {
   // SSR 首帧始终为未登录，避免 hydration mismatch；
-  // 挂载后 useEffect 再从 localStorage 恢复会话。
+  // 挂载后 useEffect 调 /api/auth/me 恢复会话（由 HttpOnly cookie 认证）。
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // 客户端挂载后恢复登录态（SSR 时 window 不存在，此 effect 不执行）
   useEffect(() => {
-    const savedToken = localStorage.getItem(TOKEN_KEY);
-    const savedUser = localStorage.getItem(USER_KEY);
-
-    let restoredUser: User | null = null;
-    if (savedUser) {
+    (async () => {
       try {
-        restoredUser = JSON.parse(savedUser);
+        const response = await fetch('/api/auth/me', { credentials: 'include' });
+        const data = await response.json();
+        if (data.success) {
+          setUser(data.data);
+          // 用户资料写入 localStorage 便于快速渲染（不含 token）
+          localStorage.setItem(USER_KEY, JSON.stringify(data.data));
+        } else {
+          // 未登录，清理残留
+          localStorage.removeItem(USER_KEY);
+        }
       } catch {
-        localStorage.removeItem(TOKEN_KEY);
+        // 网络错误：静默降级为未登录
         localStorage.removeItem(USER_KEY);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setUser(restoredUser);
-    setToken(savedToken);
-    setIsLoading(false);
+    })();
   }, []);
 
   // 登录
@@ -67,15 +76,15 @@ export function useAuth(): UseAuthReturn {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // 必须携带/接收 cookie
         body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setToken(data.data.token);
         setUser(data.data.user);
-        localStorage.setItem(TOKEN_KEY, data.data.token);
+        // token 由 HttpOnly cookie 管理，前端不持有
         localStorage.setItem(USER_KEY, JSON.stringify(data.data.user));
         return { success: true };
       } else {
@@ -93,15 +102,14 @@ export function useAuth(): UseAuthReturn {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email, password, nickname }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setToken(data.data.token);
         setUser(data.data.user);
-        localStorage.setItem(TOKEN_KEY, data.data.token);
         localStorage.setItem(USER_KEY, JSON.stringify(data.data.user));
         return { success: true };
       } else {
@@ -114,27 +122,23 @@ export function useAuth(): UseAuthReturn {
   }, []);
 
   // 登出
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    // 通知后端清除 HttpOnly cookie
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch {
+      // 忽略登出请求失败（本地状态已清）
+    }
   }, []);
 
   // 刷新用户信息
   const refreshUser = useCallback(async () => {
-    const savedToken = localStorage.getItem(TOKEN_KEY);
-    if (!savedToken) return;
-
     try {
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          Authorization: `Bearer ${savedToken}`,
-        },
-      });
-
+      const response = await fetch('/api/auth/me', { credentials: 'include' });
       const data = await response.json();
-
       if (data.success) {
         setUser(data.data);
         localStorage.setItem(USER_KEY, JSON.stringify(data.data));
@@ -183,9 +187,9 @@ export function useAuth(): UseAuthReturn {
 }
 
 // 获取 Authorization header
+// 安全修复：token 在 HttpOnly cookie 中，前端不再从 localStorage 读取。
+// fetch 时用 credentials: 'include' 即可自动携带。
+// 保留此函数返回空对象，避免破坏现有调用点（如 admin 页面）的兼容性。
 export function getAuthHeader(): Record<string, string> {
-  // SSR 预渲染（如 _not-found、静态生成）时无 localStorage，必须守卫
-  if (typeof window === 'undefined') return {};
-  const token = localStorage.getItem(TOKEN_KEY);
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return {};
 }

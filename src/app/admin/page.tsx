@@ -136,7 +136,7 @@ function UserManagementSection() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/users');
+      const res = await fetch('/api/admin/users', { credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setUsers(data.data.users);
@@ -170,6 +170,7 @@ function UserManagementSection() {
     setRecharging(true);
     try {
       const res = await fetch(`/api/admin/users/${rechargeModal.user.id}/recharge`, {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -601,7 +602,7 @@ export default function AdminPage() {
   // 加载统计数据
   useEffect(() => {
     if (activeTab === 'dashboard') {
-      fetch('/api/admin/stats')
+      fetch('/api/admin/stats', { credentials: 'include' })
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
@@ -616,7 +617,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab === 'works') {
       setLoadingWorks(true);
-      fetch('/api/admin/works')
+      fetch('/api/admin/works', { credentials: 'include' })
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
@@ -632,6 +633,7 @@ export default function AdminPage() {
   const handleReview = async (id: string, action: 'approve' | 'reject') => {
     try {
       const res = await fetch('/api/admin/works', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action }),
@@ -994,7 +996,7 @@ function PowerManagementSection() {
   const [editingCosts, setEditingCosts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    fetch('/api/admin/power')
+    fetch('/api/admin/power', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -1020,7 +1022,7 @@ function PowerManagementSection() {
     setEditingCosts({ ...cachedCosts });
 
     // 再从 API 更新最新配置
-    fetch('/api/admin/feature-costs')
+    fetch('/api/admin/feature-costs', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         console.log('[FeatureCosts] API返回:', data);
@@ -1057,6 +1059,7 @@ function PowerManagementSection() {
       if (filters.search) params.set('search', filters.search);
 
       const res = await fetch(`/api/admin/power/transactions?${params}`, {
+        credentials: 'include',
         headers: getAuthHeader(),
       });
       const data = await res.json();
@@ -1085,6 +1088,7 @@ function PowerManagementSection() {
       const res = await fetch(
         `/api/admin/users?search=${encodeURIComponent(searchQuery)}&page=${page}&limit=10`,
         {
+          credentials: 'include',
           headers: getAuthHeader(),
         }
       );
@@ -1118,6 +1122,7 @@ function PowerManagementSection() {
     try {
       // 使用新的统一充值 API
       const res = await fetch('/api/admin/power/recharge', {
+        credentials: 'include',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1173,6 +1178,7 @@ function PowerManagementSection() {
       });
 
       const res = await fetch('/api/admin/feature-costs', {
+        credentials: 'include',
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1664,7 +1670,7 @@ function SystemSettingsSection({ activeTab }: { activeTab: string }) {
   // 加载设置
   useEffect(() => {
     if (activeTab === 'system-settings') {
-      fetch('/api/admin/system')
+      fetch('/api/admin/system', { credentials: 'include' })
         .then((res) => res.json())
         .then((data) => {
           if (data.success && data.data) {
@@ -1686,6 +1692,7 @@ function SystemSettingsSection({ activeTab }: { activeTab: string }) {
     setSaving(true);
     try {
       const res = await fetch('/api/admin/system', {
+        credentials: 'include',
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -153,12 +153,12 @@ function DiagnosticModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
     setRunning(true);
     const diagnostics = [
       { name: '百度翻译 API', test: async () => {
-        const res = await fetch('/api/admin/app-settings');
+        const res = await fetch('/api/admin/app-settings', { credentials: 'include' });
         const data = await res.json();
         return data.success ? 'ok' : 'error';
       }},
       { name: '智谱 AI API', test: async () => {
-        const res = await fetch('/api/admin/app-settings');
+        const res = await fetch('/api/admin/app-settings', { credentials: 'include' });
         const data = await res.json();
         return data.success ? 'ok' : 'error';
       }},
@@ -283,7 +283,7 @@ export default function PromptConfigSection() {
 
   const loadSettings = async () => {
     try {
-      const res = await fetch('/api/admin/app-settings');
+      const res = await fetch('/api/admin/app-settings', { credentials: 'include' });
       const data = await res.json();
       if (data.success && data.data) {
         const s = data.data;
@@ -305,6 +305,7 @@ export default function PromptConfigSection() {
     setSaving(true);
     try {
       const res = await fetch('/api/admin/app-settings', {
+        credentials: 'include',
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -380,7 +381,7 @@ export default function PromptConfigSection() {
     if (!confirm('确定要清理所有历史、标签和翻译缓存吗？')) return;
     setClearing(true);
     try {
-      const res = await fetch('/api/admin/clear-cache', { method: 'POST' });
+      const res = await fetch('/api/admin/clear-cache', { credentials: 'include', method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setToast({ message: '缓存清理成功', type: 'success' });

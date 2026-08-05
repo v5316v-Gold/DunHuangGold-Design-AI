@@ -176,6 +176,7 @@ export default function TasksManagementPage() {
         if (statusFilter) params.set('status', statusFilter);
 
         const res = await fetch(`/api/admin/tasks?${params.toString()}`, {
+          credentials: 'include',
           headers: { ...getAuthHeader() },
         });
         const data: TasksResponse = await res.json();
@@ -219,6 +220,7 @@ export default function TasksManagementPage() {
       setDetailLoading(id);
       try {
         const res = await fetch(`/api/admin/tasks/${id}`, {
+          credentials: 'include',
           headers: { ...getAuthHeader() },
         });
         const data = await res.json();
@@ -241,6 +243,7 @@ export default function TasksManagementPage() {
     setActingId(id);
     try {
       const res = await fetch(`/api/admin/tasks/${id}/retry`, {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       });
@@ -265,6 +268,7 @@ export default function TasksManagementPage() {
     setActingId(id);
     try {
       const res = await fetch(`/api/admin/tasks/${id}/cancel`, {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       });

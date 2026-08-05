@@ -74,7 +74,7 @@ function CloudApiSettings() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/settings/cloud');
+      const res = await fetch('/api/settings/cloud', { credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setConnections(data.data.connections || {});
@@ -92,6 +92,7 @@ function CloudApiSettings() {
     setSaving(editingConn.id);
     try {
       const res = await fetch('/api/settings/cloud', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'saveConnection', connection: editingConn }),
@@ -109,6 +110,7 @@ function CloudApiSettings() {
     if (!confirm('确定删除此连接？')) return;
     try {
       await fetch('/api/settings/cloud', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'deleteConnection', connectionId: id }),
@@ -126,6 +128,7 @@ function CloudApiSettings() {
     setSaving(featureId);
     try {
       const res = await fetch('/api/settings/cloud', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // 只提交核心字段：启用、绑定连接、算力消耗
@@ -453,7 +456,7 @@ function ComfyUISettings() {
 
   const loadConfigs = async () => {
     try {
-      const res = await fetch('/api/settings/comfyui');
+      const res = await fetch('/api/settings/comfyui', { credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setConfigs(data.data);
@@ -496,6 +499,7 @@ function ComfyUISettings() {
     setSaving(featureId);
     try {
       const res = await fetch('/api/settings/comfyui', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -710,7 +714,7 @@ function LocalLLMSettings() {
 
   const loadConfig = async () => {
     try {
-      const res = await fetch('/api/settings/llm');
+      const res = await fetch('/api/settings/llm', { credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setConfig(data.data);
@@ -730,6 +734,7 @@ function LocalLLMSettings() {
     setSaving(true);
     try {
       const res = await fetch('/api/settings/llm', {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config }),
@@ -752,6 +757,7 @@ function LocalLLMSettings() {
     setTestResult(null);
     try {
       const res = await fetch('/api/settings/llm', {
+        credentials: 'include',
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'test', config }),

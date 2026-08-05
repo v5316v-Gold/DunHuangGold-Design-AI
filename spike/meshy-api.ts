@@ -3,6 +3,7 @@
  * 测试目标：image-to-3d API 是否能调通
  *
  * 假设：Meshy API 在 60s 内能返回 task_id
+ */
  // Meshy API 可用性测试
  async function spikeMeshy() {
   const apiKey = process.env.MESHY_API_KEY;
