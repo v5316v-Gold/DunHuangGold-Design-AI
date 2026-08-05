@@ -49,6 +49,13 @@ COPY --from=builder /app/dist-workers ./dist-workers
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
+# P0-1: 迁移文件 + entrypoint（worker 启动前自动迁移）
+COPY --from=builder /app/scripts/migrate.js ./scripts/migrate.js
+COPY --from=builder /app/src/db/migrations ./src/db/migrations
+COPY --from=builder /app/src/storage/database/migrations ./src/storage/database/migrations
+COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+RUN chmod +x /app/scripts/docker-entrypoint.sh
+
 # 非 root 用户
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 worker
@@ -57,4 +64,6 @@ USER worker
 # 健康检查：进程存活即可（worker 无 HTTP 端口）
 # 通过 node 进程检查（简单：确认进程存在）
 
+# 启动前自动迁移（ENTRYPOINT_MIGRATE=0 可跳过）
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["node", "dist-workers/orchestrator-worker.js"]

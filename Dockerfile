@@ -45,11 +45,21 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
+# P0-1: 数据库迁移文件 + entrypoint（启动前自动迁移，幂等）
+COPY --from=builder /app/scripts/migrate.js ./scripts/migrate.js
+COPY --from=builder /app/src/db/migrations ./src/db/migrations
+COPY --from=builder /app/src/storage/database/migrations ./src/storage/database/migrations
+COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+RUN chmod +x /app/scripts/docker-entrypoint.sh
+
 RUN mkdir -p /app/uploads && chown -R nextjs:nodejs /app
 USER nextjs
 EXPOSE 5000
 
+# P0-3: liveness 用 /api/ping（永远 200），readiness 用 /api/health（503 degraded）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" || exit 1
+  CMD node -e "require('http').get('http://localhost:5000/api/ping',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" || exit 1
 
+# 启动前自动迁移（ENTRYPOINT_MIGRATE=0 可跳过）
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

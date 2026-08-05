@@ -81,10 +81,68 @@ jobs:
       - name: Run unit tests (node env)
         run: NODE_ENV=development pnpm run test:node
 
-  # ===== 4. 生产构建（验证 standalone 可生成） =====
+  # ===== 4. 数据库迁移验证（P0-1） =====
+  # 用临时 Postgres 容器跑 scripts/migrate.js，验证：
+  #   - 全量迁移成功（drizzle journal + 手写 SQL）
+  #   - 重复执行幂等（跑两次不报错）
+  migration:
+    name: 🗄️ Migration verify
+    needs: install
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: dunhuang_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/download-artifact@v4
+        with: { name: node_modules, path: node_modules }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Run migration (first)
+        run: |
+          DATABASE_URL="postgresql://test:test@localhost:5432/dunhuang_test" \
+            node scripts/migrate.js
+      - name: Verify idempotency (second run)
+        run: |
+          DATABASE_URL="postgresql://test:test@localhost:5432/dunhuang_test" \
+            node scripts/migrate.js
+      - name: Verify tables exist
+        run: |
+          DATABASE_URL="postgresql://test:test@localhost:5432/dunhuang_test" \
+            node -e "
+              const { Client } = require('pg');
+              (async () => {
+                const c = new Client({ connectionString: process.env.DATABASE_URL });
+                await c.connect();
+                const { rows } = await c.query(\"SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename\");
+                console.log('tables:', rows.length);
+                const required = ['users','tasks','works','features','audit_logs','power_transactions','models','workflows'];
+                for (const t of required) {
+                  const ok = rows.some(r => r.tablename === t);
+                  console.log((ok ? '✅' : '❌') + ' ' + t);
+                  if (!ok) process.exit(1);
+                }
+                await c.end();
+              })().catch(e => { console.error(e.message); process.exit(1); });
+            "
+
+  # ===== 5. 生产构建（验证 standalone 可生成） =====
   build:
     name: 🏗 Build (standalone)
-    needs: [typecheck, test]
+    needs: [typecheck, test, migration]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -71,6 +71,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
+      ENTRYPOINT_MIGRATE: "1"
+      RUN_SEED: "${RUN_SEED:-0}" 
       DATABASE_URL: ${DATABASE_URL:-postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
@@ -94,8 +96,9 @@ services:
         condition: service_healthy
     networks:
       - dunhuang-net
+    # P0-3: liveness 用 /api/ping（永远 200，避免依赖降级误触发重启）
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/ping', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 5

@@ -35,6 +35,7 @@ const PUBLIC_PATHS = [
   '/api/auth/logout',
   '/api/auth/me',
   '/api/health',
+  '/api/ping',       // P0-3: liveness 探测（Docker healthcheck 用，必须公开）
   '/api/features',   // 功能列表（Sidebar 需要，脱敏数据）
 ];
 
