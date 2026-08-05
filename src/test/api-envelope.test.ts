@@ -235,7 +235,7 @@ describe('withRateLimit · 限流', () => {
   it('超限返回 RATE_LIMITED 429', async () => {
     // 关键：直接测限流逻辑本身（不受 skipRateLimit 影响）—— 临时设 NODE_ENV=production
     const originalEnv = process.env.NODE_ENV;
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production', writable: true, configurable: true });
+    (process.env as Record<string, string>).NODE_ENV = 'production';
     try {
       const handler = withRateLimit({ windowMs: 60_000, max: 2 })(async (ctx, body) => ok(body, ctx));
       const reqOpts = { 'x-real-ip': '1.2.3.4' };
@@ -246,7 +246,7 @@ describe('withRateLimit · 限流', () => {
       const body = await r3.json();
       expect(body.error.code).toBe('RATE_LIMITED');
     } finally {
-      Object.defineProperty(process.env, 'NODE_ENV', { value: originalEnv, writable: true, configurable: true });
+      (process.env as Record<string, string>).NODE_ENV = originalEnv ?? '';
     }
   });
 });
