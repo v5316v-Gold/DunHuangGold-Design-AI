@@ -168,34 +168,44 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
 
   // 检查所有功能的启用状态（需要登录）
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('dunhuang_token') : null;
-    if (!token) return; // 未登录时不调用
-
-    const fetchFeaturesStatus = async () => {
+    // 安全修复（P0-1）：token 已从 localStorage 移除，改用 /api/auth/me 判断登录态
+    const checkAuthAndFetchStatus = async () => {
       try {
-        const response = await fetch('/api/admin/features-status');
-        const result = await response.json();
+        // 先确认登录态（HttpOnly cookie 鉴权）
+        const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+        if (!meRes.ok) return; // 未登录时不拉取状态
 
-        if (result.success) {
-          const status: Record<string, { enabled: boolean; reason?: string }> = {};
-          Object.keys(result.data).forEach(featureId => {
-            status[featureId] = {
-              enabled: result.data[featureId].enabled,
-              reason: result.data[featureId].reason,
-            };
-          });
-          setFeaturesStatus(status);
-        } else if (result.error === '未登录') {
-          // 未登录状态下静默忽略（正常情况）
-        } else {
-          console.warn('获取功能状态失败:', result.error);
-        }
+        const fetchFeaturesStatus = async () => {
+          try {
+            const response = await fetch('/api/admin/features-status', { credentials: 'include' });
+            const result = await response.json();
+
+            if (result.success) {
+              const status: Record<string, { enabled: boolean; reason?: string }> = {};
+              Object.keys(result.data).forEach(featureId => {
+                status[featureId] = {
+                  enabled: result.data[featureId].enabled,
+                  reason: result.data[featureId].reason,
+                };
+              });
+              setFeaturesStatus(status);
+            } else if (result.error === '未登录') {
+              // 未登录状态下静默忽略（正常情况）
+            } else {
+              console.warn('获取功能状态失败:', result.error);
+            }
+          } catch (error) {
+            console.error('获取功能状态时出错:', error);
+          }
+        };
+
+        await fetchFeaturesStatus();
       } catch (error) {
-        console.error('获取功能状态时出错:', error);
+        console.error('检查登录态失败:', error);
       }
     };
 
-    fetchFeaturesStatus();
+    checkAuthAndFetchStatus();
   }, []);
 
   // 点击菜单项后关闭移动端菜单
