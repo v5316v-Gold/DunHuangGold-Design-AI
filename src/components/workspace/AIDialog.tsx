@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Send,
@@ -109,15 +109,15 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   const currentConversation = conversations.find((c) => c.id === currentConversationId);
     const messages = currentConversation?.messages || [];
 
-    // 当前会话 token 估算（用于顶部进度条）
-    const currentConversationTokenUsage = useMemo(() => {
-      if (!currentConversation) return 0;
+    // 当前会话 token 估算（用于顶部进度条）— 简单计算，无需 memoize
+    let currentConversationTokenUsage = 0;
+    if (currentConversation) {
       let total = 0;
       for (const msg of currentConversation.messages) {
         total += estimateTokens(msg.content || '');
       }
-      return total / 1000; // 转为 k
-    }, [currentConversation]);
+      currentConversationTokenUsage = total / 1000; // 转为 k
+    }
 
   // 加载会话
   useEffect(() => {
@@ -946,12 +946,12 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
                           </label>
                           <input
                             type="number"
-                            min="256"
+                            min="50"
                             max="32000"
                             step="256"
                             value={params.max_tokens}
                             onChange={(e) =>
-                              setParams({ ...params, max_tokens: parseInt(e.target.value) || 2048 })
+                              setParams({ ...params, max_tokens: parseInt(e.target.value) || 50 })
                             }
                             className="w-full px-2 py-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)]"
                           />

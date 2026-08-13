@@ -54,7 +54,7 @@ export const chatSchema = z.object({
   model: z.string().optional(),
   // LLM 调优参数
   temperature: z.coerce.number().min(0).max(2).optional(),
-  max_tokens: z.coerce.number().int().min(256).max(32000).optional(),
+  max_tokens: z.coerce.number().int().min(50).max(32000).optional(),
   top_p: z.coerce.number().min(0).max(1).optional(),
   thinking_depth: z.enum(['low', 'medium', 'high']).optional(),
   system_prompt: z.string().max(2000).optional(),
