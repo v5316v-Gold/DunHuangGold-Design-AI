@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/error-handler';
 const logger = createLogger('chat');
 
 import { getApiConfig } from '@/lib/api-config-service';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { chatSchema, sanitizeError } from '@/lib/validators';
 import { randomUUID } from 'crypto';
 import { unauthorized } from '@/lib/api-response';
@@ -79,10 +79,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!apiKey) {
-      return NextResponse.json({requestId: reqId(),  success: false, error: 'AI 服务未配置，请检查 MINIMAX_API_KEY 环境变量' }, { status: 500 });
-    }
-
     // 根据 provider 参数或降级策略决定使用哪个 provider
     if (requestedProvider && requestedProvider !== 'openclaw') {
       selectedProvider = requestedProvider;
@@ -91,6 +87,11 @@ export async function POST(request: NextRequest) {
     }
     // 优先使用用户选择的 model（来自 ModelPickerModal）
     selectedModel = requestedModel || 'MiniMax-M2.7-highspeed';
+
+    // Hermes 走本机 CLI，无需 API key
+    if (selectedProvider === 'hermes') {
+      apiKey = 'hermes-local';
+    }
 
     // 系统提示词：用户自定义 > 默认
     const userSystemContent = system_prompt?.trim();
@@ -130,7 +131,10 @@ export async function POST(request: NextRequest) {
     // 生成或使用提供的 conversationId
     const conversationId = requestConversationId || randomUUID();
 
-    if (selectedProvider === 'openclaw') {
+    if (selectedProvider === 'hermes') {
+      // 使用本机 Hermes Agent（Windows）
+      return await handleHermesChat(allMessages, conversationId);
+    } else if (selectedProvider === 'openclaw') {
       // 使用九色鹿 AI 助手
       return await handleOpenClawChat(allMessages, conversationId);
     } else {
@@ -155,6 +159,143 @@ export async function POST(request: NextRequest) {
     logger.error('chat 失败', error);
     return NextResponse.json({requestId: reqId(),  success: false, error: message }, { status: 500 });
   }
+}
+
+
+/**
+ * 处理 Hermes Agent 对话（Windows 本机 CLI）
+ *
+ * conversationId 语义 = Hermes session_id：
+ *   - 首次对话：无 conversationId → 新建会话，返回 hermes 生成的 session_id
+ *   - 多轮对话：带 conversationId → hermes chat --resume <session_id>（保持上下文）
+ */
+async function handleHermesChat(messages: any[], conversationId: string): Promise<Response> {
+  // 提取最后一条用户消息纯文本（支持多模态格式）
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+  const userMessageText = (() => {
+    const content = lastUserMessage?.content;
+    if (typeof content === 'string') return content || '你好';
+    if (Array.isArray(content)) {
+      const texts = content.filter((c) => c.type === 'text').map((c) => c.text);
+      return texts.join('\n') || '你好';
+    }
+    return '你好';
+  })();
+
+  // 限制长度（防滥用）
+  if (userMessageText.length > 4000) {
+    throw new Error('消息过长（上限 4000 字符）');
+  }
+
+  // Hermes session_id 格式形如 20260810_130256_67f82e（数字下划线数字）
+  // 前端 UUID（bdcb180f-...）不是 Hermes session，不能用于 --resume
+  const isHermesSession = /^\d{8}_\d{6}_[0-9a-f]+$/i.test(conversationId || '');
+  const resumeId = isHermesSession ? conversationId : undefined;
+
+  logger.info('调用 Hermes Agent', {
+    messageLength: userMessageText.length,
+    resume: !!resumeId,
+    conversationId,
+  });
+
+  // 调用 Hermes CLI（异步 spawn，参数数组防注入）
+  const result = await callHermes(userMessageText, resumeId);
+
+  // 返回 SSE 流式响应（与 openclaw 分支一致的协议）
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // 先发送 conversationId（Hermes session_id，用于多轮续聊）
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'conversation_id', conversationId: result.sessionId })}\n\n`));
+
+        // 字符级流式输出（正确处理 Unicode 代理对）
+        const chars = [...result.reply];
+        for (let i = 0; i < chars.length; i++) {
+          const data = JSON.stringify({ content: chars[i], done: false });
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: '', done: true })}\n\n`));
+        controller.close();
+      } catch (error) {
+        logger.error('Hermes 流式输出错误', error);
+        const { message } = sanitizeError(error, 'AI 服务暂时不可用，请稍后重试');
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: message, done: true })}\n\n`));
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+
+/**
+ * 调用 Hermes CLI（异步，参数数组防注入）
+ *
+ * 输出格式（hermes chat -q "..." -Q）：
+ *   session_id: 20260810_130256_67f82e
+ *   回复内容
+ */
+function callHermes(message: string, resumeSessionId?: string): Promise<{ reply: string; sessionId: string }> {
+  return new Promise((resolve, reject) => {
+    // 参数数组（禁止 shell 拼接，防命令注入）
+    const args = ['chat', '-q', message, '-Q'];
+    if (resumeSessionId) {
+      args.push('--resume', resumeSessionId);
+    }
+
+    logger.info('执行 Hermes CLI', { args: args.slice(0, 2).concat(['...']) });
+
+    const child = spawn('hermes', args, {
+      windowsHide: true,
+      env: { ...process.env, NO_COLOR: '1', HERMES_NONINTERACTIVE: '1' },
+      shell: false,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('Hermes 响应超时（60s）'));
+    }, 60000);
+
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(new Error(`Hermes 启动失败: ${error.message}`));
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0) {
+        logger.error('Hermes CLI 非零退出', { code, stderr: stderr.slice(0, 500), stdout: stdout.slice(0, 500) });
+        reject(new Error(`Hermes 调用失败 (exit ${code})${stderr ? ': ' + stderr.slice(0, 200) : ''}`));
+        return;
+      }
+      // 解析输出：
+      //   - session_id 在 stderr（hermes -Q 模式实测：session_id: 20260810_... 打到 stderr）
+      //   - 回复内容在 stdout
+      const allOutput = stdout + '\n' + stderr;
+      const sessionMatch = allOutput.match(/session_id:\s*(\S+)/);
+      const sessionId = sessionMatch ? sessionMatch[1] : '';
+      const reply = stdout.trim();
+      if (!reply) {
+        reject(new Error('Hermes 返回为空'));
+        return;
+      }
+      logger.info('Hermes 响应成功', { replyLength: reply.length, sessionId });
+      resolve({ reply, sessionId: sessionId || `hermes_${Date.now()}` });
+    });
+  });
 }
 
 /**

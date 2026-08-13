@@ -62,9 +62,9 @@ services:
 
   # ===== Web (Next.js) =====
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # 用本地已构建镜像（避免重复构建）：dunhuang-web:v1.0
+    image: dunhuang-web:v1.0
+    pull_policy: never
     container_name: dunhuang-web
     restart: unless-stopped
     ports:
@@ -78,7 +78,8 @@ services:
       HOSTNAME: 0.0.0.0
       ENTRYPOINT_MIGRATE: "1"
       RUN_SEED: "${RUN_SEED:-0}" 
-      DATABASE_URL: ${DATABASE_URL:-postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang}
+      # 数据库用服务名 postgres（compose 网络直连），不被 env 变量覆盖
+      DATABASE_URL: postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY:-}
@@ -118,14 +119,14 @@ services:
 
   # ===== Worker (BullMQ consumer) =====
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
+    # 用本地已构建镜像（避免重复构建）：dunhuang-worker:v1.0
+    image: dunhuang-worker:v1.0
+    pull_policy: never
     container_name: dunhuang-worker
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang}
+      DATABASE_URL: postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY:-}

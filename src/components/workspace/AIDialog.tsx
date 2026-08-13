@@ -399,6 +399,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           },
           body: JSON.stringify({
             messages: messagesToSend,
+            provider: 'hermes', // 接入 Windows 本机 Hermes Agent
             ...(currentServerConvId ? { conversationId: currentServerConvId } : {}),
             model: params.model,
             temperature: params.temperature,

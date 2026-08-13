@@ -48,7 +48,7 @@ export const idParamSchema = z.object({
 /** AI 对话 */
 export const chatSchema = z.object({
   messages: z.array(chatMessageSchema).min(1, '消息列表不能为空'),
-  provider: z.enum(['minimax', 'openclaw', 'anthropic', 'qwen', 'deepseek', 'custom']).optional(),
+  provider: z.enum(['minimax', 'openclaw', 'anthropic', 'qwen', 'deepseek', 'custom', 'hermes']).optional(),
   conversationId: z.string().optional(),
   // 模型选择（来自 ModelPickerModal）
   model: z.string().optional(),
