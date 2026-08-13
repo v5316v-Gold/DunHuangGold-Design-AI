@@ -13,6 +13,7 @@ import {
   Search,
   Sparkles,
   X,
+  Check,
   Settings,
   Brain,
   Sun,
@@ -26,6 +27,7 @@ import { getTaskCost } from '@/lib/power';
 import { getAuthHeader } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 import { ModelPickerModal } from './sub-components/ModelPickerModal';
+import { ROLE_PRESETS, ROLE_ICONS } from '@/lib/ai/role-presets';
 
 /** 模型参数配置 */
 interface ModelParams {
@@ -98,6 +100,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
     const [showThinkingMenu, setShowThinkingMenu] = useState(false);
     const [showSettingsPopover, setShowSettingsPopover] = useState(false);
     const [showUploadMenu, setShowUploadMenu] = useState(false);
+    const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -523,6 +526,22 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
     }
   };
 
+  // 角色卡点击：填 input + 切 systemPrompt + 自动配参数
+  const handleRoleSelect = (role: typeof ROLE_PRESETS[number]) => {
+    setSelectedRoleId(role.id);
+    setInput(role.prompt);
+    setParams((prev) => ({
+      ...prev,
+      systemPrompt: role.systemPrompt,
+      ...(role.suggestedParams?.temperature !== undefined && {
+        temperature: role.suggestedParams.temperature,
+      }),
+      ...(role.suggestedParams?.thinkingDepth && {
+        thinkingDepth: role.suggestedParams.thinkingDepth,
+      }),
+    }));
+  };
+
   const deleteConversation = (id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (currentConversationId === id) {
@@ -533,15 +552,6 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const scenePresets = [
-    { label: '戒指设计', prompt: '请帮我设计一款戒指，风格是' },
-    { label: '项链设计', prompt: '请帮我设计一款项链，风格是' },
-    { label: '手镯设计', prompt: '请帮我设计一款手镯，风格是' },
-    { label: '耳饰设计', prompt: '请帮我设计一款耳饰，风格是' },
-    { label: '敦煌风格', prompt: '请以敦煌风格为主题，帮我构思设计' },
-    { label: '现代简约', prompt: '请以现代简约风格为主题，帮我构思设计' },
-  ];
 
   return (
     <div className="flex-1 flex overflow-hidden" data-ai-assistant-enabled>
@@ -1041,32 +1051,57 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
             敦煌设计助手
           </h3>
 
-          {/* 模型信息 */}
-          <div className="mb-6 p-3 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Bot className="w-4 h-4 text-[var(--gold)]" />
-              <span className="text-sm font-medium text-[var(--text-primary)]">当前模型</span>
-            </div>
-            <p className="text-xs text-[var(--text-secondary)]">MiniMax-M2.7-highspeed</p>
-          </div>
-
-          {/* 场景指令预设库 */}
+          {/* 场景指令预设库（9 个专家角色 · 平铺） */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-3">
-              快捷指令
+              场景指令预设库
             </label>
             <div className="space-y-2">
-              {scenePresets.map((preset) => (
-                <button
-                  key={preset.label}
-                  onClick={() => setInput(preset.prompt)}
-                  className="w-full p-3 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg text-left hover:border-[var(--gold)] hover:bg-[var(--bg-hover)] transition-all group"
-                >
-                  <span className="text-sm text-[var(--text-secondary)] group-hover:text-[var(--gold)] transition-colors">
-                    {preset.label}
-                  </span>
-                </button>
-              ))}
+              {ROLE_PRESETS.map((role) => {
+                const Icon = ROLE_ICONS[role.iconName];
+                const isSelected = selectedRoleId === role.id;
+                return (
+                  <button
+                    key={role.id}
+                    onClick={() => handleRoleSelect(role)}
+                    className={cn(
+                      'w-full p-2.5 rounded-lg text-left transition-all border',
+                      isSelected
+                        ? 'bg-[var(--bg-hover)] border-[var(--gold)] shadow-[0_0_0_1px_var(--gold)]'
+                        : 'bg-[var(--bg-card)] border-[var(--border-color)] hover:border-[var(--gold)]/50 hover:bg-[var(--bg-hover)]/50'
+                    )}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <Icon
+                            className={cn(
+                              'w-3.5 h-3.5 flex-shrink-0',
+                              isSelected ? 'text-[var(--gold)]' : 'text-[var(--text-secondary)]'
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              'text-sm truncate',
+                              isSelected
+                                ? 'font-semibold text-[var(--text-primary)]'
+                                : 'font-medium text-[var(--text-primary)]'
+                            )}
+                          >
+                            {role.title}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] line-clamp-2 leading-relaxed">
+                          {role.description}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-3.5 h-3.5 text-[var(--gold)] flex-shrink-0 mt-0.5" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1095,7 +1130,6 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
             </div>
           </div>
         </div>
-      </div>
 
         {/* 模型选择 Modal */}
         <ModelPickerModal
@@ -1128,6 +1162,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           />
         </div>
       )}
+      </div>
     </div>
   );
 }
