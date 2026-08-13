@@ -73,28 +73,21 @@ export function getAllFeatureCosts(): Record<string, number> {
 }
 
 /**
- * 从API加载功能算力配置（异步）
+ * 从公共 API 加载功能算力配置（异步）
+ * 任何用户可读，无需鉴权
  */
 export async function preloadFeatureCosts(): Promise<void> {
   try {
-    const res = await fetch('/api/admin/feature-costs', {
-      headers: {
-        ...(typeof window !== 'undefined' && localStorage.getItem('dunhuang_token')
-          ? { Authorization: `Bearer ${localStorage.getItem('dunhuang_token')}` }
-          : {}),
-      },
+    const res = await fetch('/api/feature-costs', {
+      // 无需鉴权 header
     });
 
     if (res.ok) {
       const data = await res.json();
-      if (data.success && data.data?.features) {
-        const costs: Record<string, number> = {};
-        data.data.features.forEach((f: any) => {
-          costs[f.feature] = f.cost;
-        });
+      if (data.success && data.data?.costs) {
         // 保存到缓存
-        saveCachedCosts(costs);
-        console.log('[feature-costs] 已加载最新配置:', costs);
+        saveCachedCosts(data.data.costs);
+        console.log('[feature-costs] 已加载最新配置:', data.data.costs, '来源:', data.data.source);
         return;
       }
     }

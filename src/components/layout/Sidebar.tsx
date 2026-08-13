@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useFeatures, type PublicFeature } from '@/lib/use-features';
 import { isFeatureRegistered } from '@/lib/feature-registry';
+import { preloadFeatureCosts } from '@/lib/feature-costs';
 
 // 把 feature_id 映射到 lucide 图标（小写 key）
 // 之前错误地写为 ES6 shorthand: { Mountain } -> key="Mountain"
@@ -164,6 +165,11 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
       window.removeEventListener('resize', handleResize);
       clearTimeout(timeoutId);
     };
+  }, []);
+
+  // 应用启动时加载最新算力配置（同步 DB → localStorage）
+  useEffect(() => {
+    preloadFeatureCosts();
   }, []);
 
   // 检查所有功能的启用状态（需要登录）

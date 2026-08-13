@@ -37,6 +37,8 @@ const PUBLIC_PATHS = [
   '/api/health',
   '/api/ping',       // P0-3: liveness 探测（Docker healthcheck 用，必须公开）
   '/api/features',   // 功能列表（Sidebar 需要，脱敏数据）
+  '/api/feature-costs', // 算力配置（任何登录用户可读，Sidebar 同步用）
+  '/api/models',      // LLM provider + models（任何登录用户可读）
 ];
 
 /**

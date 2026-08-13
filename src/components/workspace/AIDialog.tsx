@@ -40,9 +40,9 @@ interface ModelParams {
 }
 
 const DEFAULT_PARAMS: ModelParams = {
-  model: 'MiniMax-M3',
+  model: '', // 启动时从 /api/models 加载默认模型
   temperature: 0.7,
-  max_tokens: 2048,
+  max_tokens: 50,
   top_p: 0.9,
   thinkingDepth: 'high',
   systemPrompt: '',
@@ -96,6 +96,18 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   const [isLoaded, setIsLoaded] = useState(false);
     // 模型参数与工具栏 UI
     const [params, setParams] = useState<ModelParams>(DEFAULT_PARAMS);
+
+    // 启动时从 /api/models 加载默认模型（管理员在后台改默认后立即生效）
+    useEffect(() => {
+      fetch('/api/models')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.default) {
+            setParams((prev) => ({ ...prev, model: data.default }));
+          }
+        })
+        .catch(() => {});
+    }, []);
     const [showModelPicker, setShowModelPicker] = useState(false);
     const [showThinkingMenu, setShowThinkingMenu] = useState(false);
     const [showSettingsPopover, setShowSettingsPopover] = useState(false);
