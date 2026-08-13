@@ -23,9 +23,10 @@ export interface CloudConnection {
 
 // 获取默认连接配置
 export function getDefaultCloudConnection(provider: CloudProvider = 'minimax'): Partial<CloudConnection> {
-  const info = CLOUD_PROVIDERS[provider];
+  // 防御：provider 不在注册表中时 fallback minimax
+  const info = CLOUD_PROVIDERS[provider] || CLOUD_PROVIDERS.minimax;
   return {
-    provider,
+    provider: CLOUD_PROVIDERS[provider] ? provider : 'minimax',
     apiKey: '',
     endpoint: info.defaultEndpoint,
     model: info.defaultModel,
@@ -150,17 +151,18 @@ import { FEATURE_DEFINITIONS } from './features';
 // 获取功能的默认云端配置
 export function getDefaultCloudConfig(featureId: string): Partial<CloudApiConfig> {
   const feature = FEATURE_DEFINITIONS[featureId];
-  const provider = feature?.defaultCloudProvider as CloudProvider || 'minimax';
-  const providerInfo = CLOUD_PROVIDERS[provider];
+  const provider = (feature?.defaultCloudProvider as CloudProvider) || 'minimax';
+  // 防御：provider 不在注册表中时 fallback minimax（避免删 provider 后整链崩）
+  const providerInfo = CLOUD_PROVIDERS[provider] || CLOUD_PROVIDERS.minimax;
   
   return {
-    provider,
+    provider: CLOUD_PROVIDERS[provider] ? provider : 'minimax',
     endpoint: providerInfo.defaultEndpoint,
     model: providerInfo.defaultModel,
     timeout: 60000,
     cost: 10,
     enabled: false,
-    apiKey: '',
+    apiKey: "",
   };
 }
 
