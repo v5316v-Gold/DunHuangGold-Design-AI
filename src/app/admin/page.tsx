@@ -691,7 +691,7 @@ export default function AdminPage() {
     { key: 'features', label: '功能管理', icon: Sparkles },
     { key: 'models', label: '模型中心', icon: Boxes },
     { key: 'api-settings', label: 'API设置', icon: Settings },
-    { key: 'system-settings', label: '提示词与规则', icon: Shield },
+    { key: 'system-settings', label: '系统设置', icon: Shield },
     { key: 'system', label: '系统健康', icon: Activity },
   ];
 
