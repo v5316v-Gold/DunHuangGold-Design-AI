@@ -24,10 +24,14 @@ RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/re
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# 生产构建要求 JWT_SECRET（next.config.ts 强校验）
-ENV JWT_SECRET=build-time-placeholder-jwt-secret-must-be-replaced-at-runtime
-# API_KEY_ENCRYPTION_KEY 同理（解密 provider 凭据需要）
-ENV API_KEY_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+# ⚠️ 生产构建需要 JWT_SECRET（next.config.ts 强校验），但绝不能硬编码真实值。
+# 这里用构建期随机占位，运行时由 docker-compose 注入真实 JWT_SECRET。
+# 若未注入，应用启动会 fail-closed（拒绝所有鉴权请求），而不是用已知弱密钥。
+ARG BUILD_JWT_SECRET=${JWT_SECRET:-}
+ENV JWT_SECRET=${BUILD_JWT_SECRET:-build-time-placeholder-${RANDOM}-${RANDOM}-${RANDOM}-${RANDOM}}
+# API_KEY_ENCRYPTION_KEY 同理：构建期占位，运行时注入真实 64 位 hex
+ARG BUILD_ENCRYPTION_KEY=${API_KEY_ENCRYPTION_KEY:-}
+ENV API_KEY_ENCRYPTION_KEY=${BUILD_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
 RUN pnpm build
 
 # ===== 阶段 3: 运行（仅 standalone） =====
