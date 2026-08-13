@@ -32,6 +32,7 @@ import {
 } from '@/config/api-settings';
 import ComfyUIWorkflowManager from '@/components/admin/ComfyUIWorkflowManager';
 import PromptConfigSection from './PromptConfigSection';
+import { ModelsEditor, type ModelItem } from './ModelsEditor';
 
 // 优化：功能分类颜色映射
 const CATEGORY_STYLES: Record<string, { bg: string; border: string; badge: string; icon: string }> = {
@@ -59,6 +60,9 @@ interface CloudConnectionDisplay {
   timeout: number;
   enabled: boolean;
   isDefault: boolean;
+  // LLM 扩展字段
+  providerLabel?: string;
+  availableModels?: ModelItem[];
 }
 
 function CloudApiSettings() {
@@ -267,6 +271,11 @@ function CloudApiSettings() {
                 </select>
               </div>
               <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Provider 显示名</Label>
+                <Input value={editingConn.providerLabel || ''} onChange={e => setEditingConn(p => ({ ...p, providerLabel: e.target.value }))} placeholder="如: MiniMax (China)" className="h-9" />
+                <p className="text-xs text-muted-foreground">显示在用户面前的中文名，留空则用服务商 ID</p>
+              </div>
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">API Key</Label>
                 <div className="relative">
                   <Input type={showApiKey[editingConn.id!] ? 'text' : 'password'} value={editingConn.apiKey || ''} onChange={e => setEditingConn(p => ({ ...p, apiKey: e.target.value }))} placeholder="sk-xxxxxxxx" className="h-9 pr-10" />
@@ -280,7 +289,23 @@ function CloudApiSettings() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">默认模型</Label>
-                  <Input value={editingConn.model || ''} onChange={e => setEditingConn(p => ({ ...p, model: e.target.value }))} placeholder="如: gpt-4o" className="h-9" />
+                  {(editingConn.availableModels || []).filter((m: ModelItem) => m.enabled).length > 0 ? (
+                    <select
+                      value={editingConn.model || ''}
+                      onChange={e => setEditingConn(p => ({ ...p, model: e.target.value }))}
+                      className="w-full h-9 px-3 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-primary)]"
+                    >
+                      <option value="">（请选择）</option>
+                      {(editingConn.availableModels as ModelItem[] || [])
+                        .filter((m: ModelItem) => m.enabled)
+                        .map((m: ModelItem) => (
+                          <option key={m.id} value={m.id}>{m.label} ({m.id})</option>
+                        ))
+                      }
+                    </select>
+                  ) : (
+                    <Input value={editingConn.model || ''} onChange={e => setEditingConn(p => ({ ...p, model: e.target.value }))} placeholder="如: gpt-4o" className="h-9" />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">超时 (ms)</Label>
@@ -297,6 +322,24 @@ function CloudApiSettings() {
                   <span className="text-sm">设为默认</span>
                 </label>
               </div>
+
+              {/* 可用模型清单（仅 LLM 连接 id 开头为 llm- 时显示）*/}
+              {editingConn.id?.startsWith('llm-') && (
+                <div className="space-y-1.5 border-t pt-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">可用模型清单</Label>
+                    <span className="text-xs text-muted-foreground">
+                      共 {(editingConn.availableModels || []).length} 个，
+                      启用 {(editingConn.availableModels || []).filter((m: ModelItem) => m.enabled).length} 个
+                    </span>
+                  </div>
+                  <ModelsEditor
+                    models={editingConn.availableModels || []}
+                    onChange={(models) => setEditingConn(p => ({ ...p, availableModels: models }))}
+                  />
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-2 border-t">
                 <Button variant="outline" size="sm" onClick={() => setEditingConn(null)}>取消</Button>
                 <Button size="sm" onClick={saveConnection} disabled={saving !== null || !editingConn.id} className="gap-1">

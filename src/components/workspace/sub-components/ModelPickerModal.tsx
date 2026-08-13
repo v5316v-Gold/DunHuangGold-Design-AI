@@ -43,8 +43,6 @@ export function ModelPickerModal({
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
-  const [defaultProvider, setDefaultProvider] = useState<string>('MiniMax (China)');
-  const [customModelId, setCustomModelId] = useState('');
   const [loading, setLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,7 +59,9 @@ export function ModelPickerModal({
           const firstAvailable = data.providers.find((p: ModelProvider) => p.available) || data.providers[0];
           if (firstAvailable) setExpandedProviders(new Set([firstAvailable.id]));
         }
-        if (data?.default) setDefaultProvider(data.default);
+        if (data?.default) {
+          // 兼容老字段，新版不再使用 defaultProvider state
+        }
       })
       .catch((err) => console.error('加载模型列表失败', err))
       .finally(() => setLoading(false));
@@ -113,12 +113,6 @@ export function ModelPickerModal({
   const handleSelect = (modelId: string, providerId: string) => {
     onSelect(modelId, providerId);
     onClose();
-  };
-
-  const handleCustomModelSubmit = () => {
-    if (customModelId.trim()) {
-      handleSelect(customModelId.trim(), 'custom');
-    }
   };
 
   return (
@@ -238,32 +232,10 @@ export function ModelPickerModal({
             })}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-[var(--border-color)] space-y-3">
-          {/* Provider select + custom model input */}
-          <div className="flex gap-2">
-            <select
-              value={defaultProvider}
-              onChange={(e) => setDefaultProvider(e.target.value)}
-              className="px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]"
-            >
-              {providers.map((p) => (
-                <option key={p.id} value={p.label}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={customModelId}
-              onChange={(e) => setCustomModelId(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCustomModelSubmit()}
-              placeholder="未列出的模型 ID"
-              className="flex-1 px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--gold)]"
-            />
-          </div>
-          <p className="text-xs text-[var(--text-muted)]">
-            仅用于 provider 支持但未返回的模型；不是重命名。按回车加载。
+        {/* Footer：显示由管理员配置的模型数量提示 */}
+        <div className="px-6 py-3 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]/30">
+          <p className="text-xs text-muted-foreground text-center">
+            模型由后台管理员在「API 设置 → 大模型API」中配置
           </p>
         </div>
       </div>
