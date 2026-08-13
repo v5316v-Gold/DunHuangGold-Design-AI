@@ -19,4 +19,5 @@ export { settingsRepository, SettingsRepository } from './settings-repository';
 export { usersRepository, UsersRepository } from './users-repository';
 export { statsRepository, StatsRepository } from './stats-repository';
 export { rulesRepository, RulesRepository } from './rules-repository';
+export { apiConfigsRepository, ApiConfigsRepository } from './api-configs-repository';
 export { withRetry, isConnectionError, type RetryOptions } from './db-retry';

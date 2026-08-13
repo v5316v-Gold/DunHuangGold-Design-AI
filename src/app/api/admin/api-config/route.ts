@@ -18,6 +18,7 @@ import {
 import { saveApiConfig, clearConfigCache, getMemoryConfigs } from '@/lib/api-config-service';
 import { db } from '@/db';
 import { apiConfigs } from '@/db/schema';
+import { apiConfigsRepository } from '@/db/repositories';
 import { sanitizeError } from '@/lib/validators';
 import { eq } from 'drizzle-orm';
 import { createLogger } from '@/lib/error-handler';
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ requestId: reqId(), success: true, data: [] });
       }
       try {
-        const configs = await db.select().from(apiConfigs);
+        const configs = await apiConfigsRepository.list();
         return NextResponse.json({ requestId: reqId(), success: true, data: configs });
       } catch (error) {
         const errorMessage = sanitizeError(error, '操作失败').message;
