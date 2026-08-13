@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Zap,
   Mail,
@@ -458,15 +459,20 @@ export default function LoginPage() {
           <div className="flex items-center gap-4 mb-10 animate-fade-in">
             <div className="relative">
               <div
-                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--gold)] via-[var(--gold-bright)] to-[var(--gold-hover)] flex items-center justify-center shadow-[0_8px_40px_rgba(212,175,55,0.4)]"
+                className="w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-br from-[var(--gold)] via-[var(--gold-bright)] to-[var(--gold-hover)]"
                 style={{
                   boxShadow:
                     '0 8px 40px rgba(212,175,55,0.4), inset 0 2px 10px rgba(255,255,255,0.3)',
                 }}
               >
-                <span className="text-black font-bold text-xl" style={{ fontFamily: 'serif' }}>
-                  敦
-                </span>
+                <Image
+                  src="/logo.png"
+                  alt="敦煌金AI设计平台"
+                  width={56}
+                  height={56}
+                  className="w-full h-full object-cover"
+                  unoptimized
+                />
               </div>
               {/* 光晕 */}
               <div className="absolute inset-0 rounded-2xl bg-[var(--gold)] blur-xl opacity-30 -z-10" />

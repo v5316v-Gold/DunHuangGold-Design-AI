@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { useFeatures, type PublicFeature } from '@/lib/use-features';
 import { isFeatureRegistered } from '@/lib/feature-registry';
 import { preloadFeatureCosts } from '@/lib/feature-costs';
+import NextImage from 'next/image';
 
 // 把 feature_id 映射到 lucide 图标（小写 key）
 // 之前错误地写为 ES6 shorthand: { Mountain } -> key="Mountain"
@@ -283,6 +284,17 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
 
           {isExpanded && (
             <div className="flex items-center gap-2 animate-fade-in">
+              {/* 品牌头像 */}
+              <div className="w-7 h-7 rounded-lg overflow-hidden border border-[var(--gold)]/30 flex-shrink-0">
+                <NextImage
+                  src="/logo.png"
+                  alt="敦煌金AI设计平台"
+                  width={28}
+                  height={28}
+                  className="w-full h-full object-cover"
+                  unoptimized
+                />
+              </div>
               <div className="w-8 h-[2px] bg-gradient-to-r from-[var(--gold)] to-transparent rounded-full" />
               <span className="text-[10px] font-bold text-[var(--text-dim)] tracking-[3px] uppercase">
                 COMMAND
