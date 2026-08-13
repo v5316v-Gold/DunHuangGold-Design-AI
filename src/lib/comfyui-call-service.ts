@@ -114,6 +114,8 @@ async function queuePrompt(host: string, workflow: Record<string, any>): Promise
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: workflow }),
+      // Phase 4：硬超时保护（ComfyUI 未运行时不挂起，8s 内快速失败触发 fallback）
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
@@ -133,7 +135,10 @@ async function queuePrompt(host: string, workflow: Record<string, any>): Promise
  */
 async function getHistory(host: string, promptId: string): Promise<any> {
   try {
-    const response = await fetch(`http://${host}/api/history/${promptId}`);
+    const response = await fetch(`http://${host}/api/history/${promptId}`, {
+      // Phase 4：硬超时保护（8s）
+      signal: AbortSignal.timeout(8000),
+    });
     if (!response.ok) return null;
     return await response.json();
   } catch {
@@ -309,6 +314,8 @@ async function uploadImageToComfyUI(
       method: 'POST',
       body: form,
       headers,
+      // Phase 4：上传超时保护（15s）
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {

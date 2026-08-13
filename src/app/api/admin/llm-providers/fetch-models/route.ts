@@ -19,8 +19,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { unauthorized, apiError } from '@/lib/api-response';
-import { fetchProviderModels, type FetchedModel } from '@/lib/provider-models-fetcher';
+import { unauthorized } from '@/lib/api-response';
+import { fetchProviderModels } from '@/lib/provider-models-fetcher';
 
 export const runtime = 'nodejs';
 

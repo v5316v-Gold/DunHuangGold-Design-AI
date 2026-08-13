@@ -1,5 +1,7 @@
 import { Worker } from 'bullmq';
-import { orchestrator } from '@/lib/orchestrator/feature-orchestrator';
+// Phase 4：worker 走新 PolicyOrchestrator（策略驱动：routing/retry/fallback + ExecutionPlan）
+// 旧 orchestrator（src/lib/orchestrator/feature-orchestrator）已冻结 deprecated
+import { policyOrchestrator } from '@/lib/ai/orchestration/policy-orchestrator';
 import { getBullConnection } from '@/lib/redis';
 import {
   markProcessing,
@@ -97,8 +99,8 @@ const worker = new Worker(
       logger.warn(`[worker] 标记 processing 失败: ${taskId}`, e as Error);
     }
 
-    // 2. 执行
-    const result = await orchestrator.execute({
+    // 2. 执行（Phase 4：新 PolicyOrchestrator，策略驱动）
+    const result = await policyOrchestrator.execute({
       featureId,
       userId,
       inputs: params,

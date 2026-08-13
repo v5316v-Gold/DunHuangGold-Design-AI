@@ -14,6 +14,13 @@ import type {
   FeatureExecutionResult,
 } from './types';
 
+/**
+ * @deprecated Phase 4：本编排器已冻结，由新 PolicyOrchestrator
+ * （src/lib/ai/orchestration/policy-orchestrator.ts）替代。
+ * 新执行链：GenerationService → PolicyOrchestrator（routing/retry/fallback + ExecutionPlan）
+ * 保留本文件仅为兼容回滚；新开发一律使用 policyOrchestrator。
+ * 删除计划：Phase 4 验收通过后移除。
+ */
 export class FeatureOrchestrator {
   private readonly executors = new Map<ExecutorType, Executor>([
     ['mock', new MockExecutor()],

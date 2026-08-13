@@ -37,7 +37,7 @@ import {
 } from '@/lib/ai-service/power-helper';
 import { powerLedger } from '@/lib/ai/application/power-ledger';
 import { getFeatureCost } from '@/lib/feature-costs';
-import { orchestrator } from '@/lib/orchestrator/feature-orchestrator';
+import { policyOrchestrator } from '@/lib/ai/orchestration/policy-orchestrator';
 import {
   memoryTasks,
   createMemoryTask,
@@ -516,7 +516,7 @@ class GenerationService {
     traceId?: string;
   }> {
     const traceId = ctx.traceId ?? ctx.requestId;
-    const result = await orchestrator.execute({
+    const result = await policyOrchestrator.execute({
       featureId: input.featureId,
       userId,
       inputs: input.params,

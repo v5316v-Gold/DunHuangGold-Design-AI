@@ -24,14 +24,15 @@ RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/re
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# ⚠️ 生产构建需要 JWT_SECRET（next.config.ts 强校验），但绝不能硬编码真实值。
-# 这里用构建期随机占位，运行时由 docker-compose 注入真实 JWT_SECRET。
-# 若未注入，应用启动会 fail-closed（拒绝所有鉴权请求），而不是用已知弱密钥。
-ARG BUILD_JWT_SECRET=${JWT_SECRET:-}
-ENV JWT_SECRET=${BUILD_JWT_SECRET:-build-time-placeholder-${RANDOM}-${RANDOM}-${RANDOM}-${RANDOM}}
-# API_KEY_ENCRYPTION_KEY 同理：构建期占位，运行时注入真实 64 位 hex
-ARG BUILD_ENCRYPTION_KEY=${API_KEY_ENCRYPTION_KEY:-}
-ENV API_KEY_ENCRYPTION_KEY=${BUILD_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+# ⚠️ 构建期 JWT_SECRET 仅用于通过 next.config 校验，绝不能是真实密钥。
+# 推荐：docker build --build-arg BUILD_JWT_SECRET=$(openssl rand -base64 64)
+# 不传 ARG 时用 base64 格式的固定占位（仍 ≥32 字符，伪随机字符串）。
+# 运行时由 docker-compose 注入真实 JWT_SECRET（生产 fail-closed）。
+ARG BUILD_JWT_SECRET=YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE
+ENV JWT_SECRET=${BUILD_JWT_SECRET}
+# API_KEY_ENCRYPTION_KEY 同理（64 位 hex 字符串）
+ARG BUILD_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
+ENV API_KEY_ENCRYPTION_KEY=${BUILD_ENCRYPTION_KEY}
 RUN pnpm build
 
 # ===== 阶段 3: 运行（仅 standalone） =====

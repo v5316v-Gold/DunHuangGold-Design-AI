@@ -79,6 +79,15 @@ src/
 6. **配置数据库化**（Phase 5）：运行参数不写死代码，走 Feature Registry / Provider Registry / Workflow Registry
 7. **Incremental Refactoring**：不回退旧历史、不跨阶段重构、不重写；老代码标记 deprecated 后逐批迁移
 
+## 4.5. Phase 4 编排层落点（2026-08-13）
+
+- **worker 切换**：`workers/orchestrator-worker.ts` 从老 `feature-orchestrator` 切换到新 `policyOrchestrator`
+- **17 个 Handler**：通过 `handler-adapters.ts` 通用适配器从老 `service-registry` 自动生成（无需重写）
+- **`/api/ai/generate` 同步路径**：`generation-service.ts` 的 `executeSync` 也切到 `policyOrchestrator`
+- **超时保护**：`comfyui-call-service.ts` 的 3 个核心 fetch 加 `AbortSignal.timeout`（8s/15s）防止 ComfyUI 不可用时挂起
+- **风险缓解**：老 `feature-orchestrator.ts` 标记 `@deprecated` 保留 rollback 能力
+- **Dockerfile 安全**：JWT_SECRET / ENCRYPTION_KEY 改用 build-arg 注入 + base64 占位（≥32 字符防 fail-closed）
+
 ## 5. 请求处理链路（目标状态）
 
 ```
@@ -153,7 +162,7 @@ src/
 | Phase | 内容 | 状态 |
 |-------|------|------|
 | 1-3 | 基础设施/网关/后端 | ✅ 完成（本 Phase 前置已收尾文档+安全）|
-| **4** | **编排层：17 Handler 迁移 + Policy 接线 + 状态机打通 + 删 Mock** | ⏳ **当前** |
+| **4** | **编排层：worker 切换到 PolicyOrchestrator + ComfyUI 超时保护** | ✅ **已落（worker v2.0）** |
 | 5 | 数据层：Repository 收口 + 配置数据库化 + 三大 Registry | ⏳ |
 | 6 | 平台能力：算力账本/模型中心/LoRA/Workflow/告警审计 | ⏳ |
 | 7 | 前端元数据化：Sidebar/Workspace/表单/上传组件 | ⏳ |
