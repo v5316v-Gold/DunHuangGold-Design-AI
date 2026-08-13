@@ -1,5 +1,5 @@
-# 敦煌金 AI 平台 - Worker 专用 Dockerfile（Phase 9.15 优化）
-# 用 alpine + 自装 Node（避免拉 node:20-alpine 慢）
+# 敦煌金 AI 平台 - Worker 专用 Dockerfile（Phase 9.17 node:20-alpine 基础）
+# 用官方 node:20-alpine 作为基础镜像（已下载）
 #
 # 构建：
 #   docker build -f Dockerfile.worker -t dunhuang-ai-worker:latest .
@@ -13,20 +13,17 @@
 #     dunhuang-ai-worker:latest
 
 # 阶段1: 依赖
-FROM alpine:3.20 AS deps
+FROM node:20-alpine AS deps
 WORKDIR /app
-# 国内镜像源加速
-RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/repositories && \
-    apk add --no-cache nodejs npm bash && \
+RUN apk add --no-cache bash && \
     npm install -g pnpm@9 --registry=https://registry.npmmirror.com
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com
 
 # 阶段2: 构建 worker 产物
-FROM alpine:3.20 AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
-RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/repositories && \
-    apk add --no-cache nodejs npm bash && \
+RUN apk add --no-cache bash && \
     npm install -g pnpm@9 --registry=https://registry.npmmirror.com
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -43,10 +40,10 @@ RUN ./node_modules/.bin/tsup workers/orchestrator-worker.ts \
   --external ioredis
 
 # 阶段3: 运行（最小镜像）
-FROM alpine:3.20 AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
-RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apk/repositories && \
-    apk add --no-cache nodejs npm bash
+RUN apk add --no-cache bash && \
+    addgroup -S nodejs -g 1001 && adduser -S worker -u 1001
 
 ENV NODE_ENV=production
 
@@ -62,8 +59,6 @@ COPY --from=builder /app/src/storage/database/migrations ./src/storage/database/
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 RUN chmod +x /app/scripts/docker-entrypoint.sh
 
-# 非 root 用户
-RUN addgroup -S nodejs -g 1001 && adduser -S worker -u 1001
 USER worker
 
 # 启动前自动迁移（ENTRYPOINT_MIGRATE=0 可跳过）

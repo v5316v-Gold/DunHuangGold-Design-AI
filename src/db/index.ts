@@ -8,6 +8,9 @@
  * - idleTimeoutMillis: 30s
  * - connectionTimeoutMillis: 5s（连接超时上限）
  *
+ * Phase 9.16 修复：
+ * - listen Pool 'error' / 'connect' 事件，drizzle 卡住时输出真实错误
+ *
  * 环境变量覆盖：
  * - DATABASE_POOL_MAX: 自定义最大连接数
  * - DATABASE_POOL_MIN: 自定义最小热连接数
@@ -28,6 +31,8 @@ const POOL_MAX = parseInt(process.env.DATABASE_POOL_MAX || '30', 10);
 const POOL_MIN = parseInt(process.env.DATABASE_POOL_MIN || '5', 10);
 
 // 仅当有有效 DATABASE_URL 时才创建连接池
+// 注意: node-postgres pg.Pool 不支持 lazyConnect 选项（不同于 ioredis）
+//       Phase 9.16 修复: 用 connectionTimeoutMillis 控制单次连接超时
 const pool = databaseUrl
   ? new Pool({
       connectionString: databaseUrl,
@@ -36,8 +41,6 @@ const pool = databaseUrl
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
       ssl: false,
-      // Phase 9.16 关键修复: lazyConnect 避免启动时阻塞
-      lazyConnect: true,
     })
   : null;
 
@@ -45,8 +48,8 @@ console.log(`[db] 连接池配置: max=${POOL_MAX}, min=${POOL_MIN}`);
 
 // Phase 9.16 · PG Pool 详细事件日志（定位 drizzle 卡住的真实原因）
 if (pool) {
-  pool.on('error', (err) => {
-    console.error('[db:pool] 连接错误:', err.code, err.message, err.stack);
+  pool.on('error', (err: Error) => {
+    console.error('[db:pool] 连接错误:', err.message, err.stack);
   });
   pool.on('connect', () => {
     console.log('[db:pool] 新连接建立');
@@ -57,8 +60,8 @@ if (pool) {
   // 预热连接（解决首请求延迟 + 触发 drizzle 真实初始化）
   pool.query('SELECT 1').then(() => {
     console.log('[db:pool] 预热连接成功');
-  }).catch((err) => {
-    console.warn('[db:pool] 预热失败:', err.code, err.message);
+  }).catch((err: Error) => {
+    console.warn('[db:pool] 预热失败:', err.message);
   });
 }
 
