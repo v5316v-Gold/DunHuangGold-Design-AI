@@ -336,6 +336,11 @@ function CloudApiSettings() {
                   <ModelsEditor
                     models={editingConn.availableModels || []}
                     onChange={(models) => setEditingConn(p => ({ ...p, availableModels: models }))}
+                    fetchConfig={{
+                      provider: editingConn.provider || 'minimax',
+                      apiKey: editingConn.apiKey || '',
+                      endpoint: editingConn.endpoint || '',
+                    }}
                   />
                 </div>
               )}
