@@ -2,9 +2,10 @@
 
 import { toast } from 'sonner';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 
 // 标记为动态渲染，避免静态生成时缺少客户端上下文
+import dynamic from 'next/dynamic';
 import NextImage from 'next/image';
 import {
   Users,
@@ -34,6 +35,24 @@ import ApiSettingsView from '@/components/admin/ApiSettingsView';
 import { usePageState } from '@/hooks/usePageState';
 import { getAuthHeader } from '@/hooks/useAuth';
 import { saveFeatureCosts, getAllFeatureCosts } from '@/lib/feature-costs';
+
+// 直接 import 子页面（去 iframe 嵌入）
+import FeaturesPage from './features/page';
+import TasksPage from './tasks/page';
+import ModelsPage from './models/page';
+import SystemPage from './system/page';
+
+// 加载占位组件
+function LoadingPanel({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center py-20 bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] min-h-[400px]">
+      <div className="flex flex-col items-center gap-2">
+        <RefreshCw className="w-6 h-6 animate-spin text-[var(--gold)]" />
+        <span className="text-sm text-[var(--text-muted)]">加载{label}...</span>
+      </div>
+    </div>
+  );
+}
 
 // 算力来源类型
 type PowerSource = 'cloud' | 'local';
@@ -593,6 +612,8 @@ export default function AdminPage() {
     totalGenerated: 0,
     totalPower: 0,
     usedPower: 0,
+    taskTotal: 0,
+    taskPending: 0,
   });
 
   // 待审核作品
@@ -602,11 +623,22 @@ export default function AdminPage() {
   // 加载统计数据
   useEffect(() => {
     if (activeTab === 'dashboard') {
-      fetch('/api/admin/stats', { credentials: 'include' })
+      fetch('/api/admin/dashboard-stats', { credentials: 'include' })
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
-            setStats(data.data);
+            // 字段名映射（新 API 嵌套结构 → 老扁平结构）
+            const d = data.data || {};
+            setStats({
+              totalUsers: d.users?.total ?? 0,
+              activeUsers: d.users?.today ?? 0,
+              totalGenerated: d.works?.total ?? 0,
+              todayGenerated: d.works?.today ?? 0,
+              totalPower: d.power?.totalBalance ?? 0,
+              usedPower: d.power?.todayConsumed ?? 0,
+              taskTotal: d.tasks?.total ?? 0,
+              taskPending: d.tasks?.pending ?? 0,
+            });
           }
         })
         .catch(console.error);
@@ -659,7 +691,7 @@ export default function AdminPage() {
     { key: 'features', label: '功能管理', icon: Sparkles },
     { key: 'models', label: '模型中心', icon: Boxes },
     { key: 'api-settings', label: 'API设置', icon: Settings },
-    { key: 'system-settings', label: '系统设置', icon: Shield },
+    { key: 'system-settings', label: '提示词与规则', icon: Shield },
     { key: 'system', label: '系统健康', icon: Activity },
   ];
 
@@ -879,37 +911,25 @@ export default function AdminPage() {
           {/* 算力管理 */}
           {activeTab === 'power' && <PowerManagementSection />}
 
-          {/* 功能管理 (2026-08-03 新增) - 独立子页面 */}
+          {/* 功能管理 - 直接 import 子页面（去 iframe） */}
           {activeTab === 'features' && (
-            <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] overflow-hidden">
-              <iframe
-                src="/admin/features"
-                title="功能管理"
-                className="w-full min-h-[800px] border-0"
-              />
-            </div>
+            <Suspense fallback={<LoadingPanel label="功能管理" />}>
+              <FeaturesPage />
+            </Suspense>
           )}
 
-          {/* 任务中心 (2026-08-03 新增) - 独立子页面 */}
+          {/* 任务中心 - 直接 import（去 iframe）*/}
           {activeTab === 'tasks' && (
-            <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] overflow-hidden">
-              <iframe
-                src="/admin/tasks"
-                title="任务中心"
-                className="w-full min-h-[800px] border-0"
-              />
-            </div>
+            <Suspense fallback={<LoadingPanel label="任务中心" />}>
+              <TasksPage />
+            </Suspense>
           )}
 
-          {/* 模型中心 (2026-08-03 新增) - 独立子页面 */}
+          {/* 模型中心 - 直接 import（去 iframe）*/}
           {activeTab === 'models' && (
-            <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] overflow-hidden">
-              <iframe
-                src="/admin/models"
-                title="模型中心"
-                className="w-full min-h-[800px] border-0"
-              />
-            </div>
+            <Suspense fallback={<LoadingPanel label="模型中心" />}>
+              <ModelsPage />
+            </Suspense>
           )}
 
           {/* API设置 */}
@@ -918,15 +938,11 @@ export default function AdminPage() {
           {/* 系统设置 */}
           {activeTab === 'system-settings' && <SystemSettingsSection activeTab={activeTab} />}
 
-          {/* 系统健康 (2026-08-03 新增) - 独立子页面 */}
+          {/* 系统健康 - 直接 import（去 iframe）*/}
           {activeTab === 'system' && (
-            <div className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] overflow-hidden">
-              <iframe
-                src="/admin/system"
-                title="系统健康"
-                className="w-full h-[calc(100vh-120px)] border-0"
-              />
-            </div>
+            <Suspense fallback={<LoadingPanel label="系统健康" />}>
+              <SystemPage />
+            </Suspense>
           )}
         </div>
       </div>
