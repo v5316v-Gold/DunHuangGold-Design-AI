@@ -62,8 +62,8 @@ services:
 
   # ===== Web (Next.js) =====
   web:
-    # 用本地已构建镜像（避免重复构建）：dunhuang-ai-dev-web:latest（Phase 4 编排层）
-    image: dunhuang-ai-dev-web:latest
+    # 用本地已构建镜像：dunhuang-web:v1.0（本地构建）
+    image: dunhuang-web:v1.0
     pull_policy: never
     container_name: dunhuang-web
     restart: unless-stopped
@@ -119,8 +119,8 @@ services:
 
   # ===== Worker (BullMQ consumer) =====
   worker:
-    # 用本地已构建镜像（避免重复构建）：dunhuang-worker:v2.0（Phase 4 新编排器）
-    image: dunhuang-worker:v2.0
+    # 用本地已构建镜像：dunhuang-worker:v1.0（本地构建）
+    image: dunhuang-worker:v1.0
     pull_policy: never
     container_name: dunhuang-worker
     restart: unless-stopped

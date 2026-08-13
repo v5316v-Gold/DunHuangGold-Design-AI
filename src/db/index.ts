@@ -36,10 +36,31 @@ const pool = databaseUrl
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
       ssl: false,
+      // Phase 9.16 关键修复: lazyConnect 避免启动时阻塞
+      lazyConnect: true,
     })
   : null;
 
 console.log(`[db] 连接池配置: max=${POOL_MAX}, min=${POOL_MIN}`);
+
+// Phase 9.16 · PG Pool 详细事件日志（定位 drizzle 卡住的真实原因）
+if (pool) {
+  pool.on('error', (err) => {
+    console.error('[db:pool] 连接错误:', err.code, err.message, err.stack);
+  });
+  pool.on('connect', () => {
+    console.log('[db:pool] 新连接建立');
+  });
+  pool.on('remove', () => {
+    console.log('[db:pool] 连接释放');
+  });
+  // 预热连接（解决首请求延迟 + 触发 drizzle 真实初始化）
+  pool.query('SELECT 1').then(() => {
+    console.log('[db:pool] 预热连接成功');
+  }).catch((err) => {
+    console.warn('[db:pool] 预热失败:', err.code, err.message);
+  });
+}
 
 // 创建 Drizzle 实例（仅在有连接池时）
 // server-only: API routes 总是通过 dynamic=force-dynamic 访问，不会有 null 问题

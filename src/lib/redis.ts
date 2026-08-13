@@ -20,19 +20,44 @@ export function getRedis(): Redis {
     const url = process.env.REDIS_URL || 'redis://localhost:6379';
     _client = new IORedis(url, {
       maxRetriesPerRequest: 3,
-      lazyConnect: false,
+      // Phase 9.16 修复: lazyConnect 避免启动时阻塞进程
+      lazyConnect: true,
       enableReadyCheck: true,
       reconnectOnError: (err) => {
         // READONLY 错误时重连（failover 场景）
         return err.message.includes('READONLY');
       },
+      // 重连策略: 指数退避，最大 5 秒
+      retryStrategy: (times) => {
+        const delay = Math.min(times * 50, 5000);
+        console.log(`[redis] 重连第 ${times} 次，${delay}ms 后重试`);
+        return delay;
+      },
     });
 
     _client.on('error', (err) => {
-      console.error('[redis] 连接错误:', err.message);
+      // Phase 9.16: code + message 都打（之前 message 为空无法排查）
+      console.error('[redis] 连接错误:', err.code || 'NO_CODE', err.message || '(empty message)');
     });
     _client.on('connect', () => {
       console.log('[redis] 已连接:', url);
+    });
+    _client.on('ready', () => {
+      console.log('[redis] ready 状态');
+    });
+    _client.on('close', () => {
+      console.warn('[redis] 连接关闭');
+    });
+    _client.on('reconnecting', (delay) => {
+      console.log(`[redis] 重连中 (${delay}ms 后)`);
+    });
+    _client.on('end', () => {
+      console.warn('[redis] 连接结束');
+    });
+
+    // Phase 9.16 修复: 异步触发连接，不阻塞进程
+    _client.connect().catch((err) => {
+      console.warn('[redis] 初始连接失败（将在后台重试）:', err.code || 'NO_CODE', err.message);
     });
   }
   return _client;
@@ -50,6 +75,9 @@ export function getBullConnection(): Redis {
     _bullConnection = new IORedis(url, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
+      // Phase 9.16 修复: lazyConnect
+      lazyConnect: true,
+      retryStrategy: (times) => Math.min(times * 50, 5000),
     });
   }
   return _bullConnection;
