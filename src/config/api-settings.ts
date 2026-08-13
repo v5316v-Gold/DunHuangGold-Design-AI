@@ -53,7 +53,7 @@ export interface CloudApiConfig {
   error?: string;
 }
 
-export type CloudProvider = 'minimax' | 'zhipu' | 'meshy' | 'openai' | 'qwen';
+export type CloudProvider = 'minimax' | 'deepseek';
 
 export const CLOUD_PROVIDERS: Record<CloudProvider, { name: string; defaultEndpoint: string; defaultModel: string }> = {
   'minimax': {
@@ -61,25 +61,10 @@ export const CLOUD_PROVIDERS: Record<CloudProvider, { name: string; defaultEndpo
     defaultEndpoint: 'https://api.minimax.chat/v1',
     defaultModel: 'image-01',
   },
-  'zhipu': {
-    name: '智谱AI',
-    defaultEndpoint: 'https://open.bigmodel.cn/api/paas/v4',
-    defaultModel: 'cogview-3',
-  },
-  'meshy': {
-    name: 'Meshy',
-    defaultEndpoint: 'https://api.meshy.ai/v2',
-    defaultModel: 'meshy-3',
-  },
-  'openai': {
-    name: 'OpenAI',
-    defaultEndpoint: 'https://api.openai.com/v1',
-    defaultModel: 'dall-e-3',
-  },
-  'qwen': {
-    name: '通义千问',
-    defaultEndpoint: 'https://dashscope.aliyuncs.com/api/v1',
-    defaultModel: 'wanx2.1-t2i-plus',
+  'deepseek': {
+    name: 'DeepSeek',
+    defaultEndpoint: 'https://api.deepseek.com/v1',
+    defaultModel: 'deepseek-chat',
   },
 };
 
