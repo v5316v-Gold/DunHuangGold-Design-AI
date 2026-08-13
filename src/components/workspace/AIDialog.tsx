@@ -1,11 +1,59 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { Send, Bot, User, Trash2, Image as ImageIcon, Paperclip, Plus, Search, Sparkles, X } from 'lucide-react';
+import {
+  Send,
+  Bot,
+  User,
+  Trash2,
+  Image as ImageIcon,
+  Paperclip,
+  Plus,
+  Search,
+  Sparkles,
+  X,
+  Settings,
+  Brain,
+  Sun,
+  Mic,
+  ArrowUp,
+  ChevronDown,
+  FileText,
+  Upload,
+} from 'lucide-react';
 import { getTaskCost } from '@/lib/power';
 import { getAuthHeader } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
+import { ModelPickerModal } from './sub-components/ModelPickerModal';
+
+/** 模型参数配置 */
+interface ModelParams {
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  top_p: number;
+  thinkingDepth: 'low' | 'medium' | 'high';
+  systemPrompt: string;
+}
+
+const DEFAULT_PARAMS: ModelParams = {
+  model: 'MiniMax-M3',
+  temperature: 0.7,
+  max_tokens: 2048,
+  top_p: 0.9,
+  thinkingDepth: 'high',
+  systemPrompt: '',
+};
+
+/** 估算 token 数（中文 1.5 字符/token，英文 4 字符/token） */
+function estimateTokens(text: string): number {
+  if (!text) return 0;
+  // 中文字符数
+  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const otherChars = text.length - chineseChars;
+  return Math.ceil(chineseChars / 1.5 + otherChars / 4);
+}
 
 /** 消息内容块（多模态） */
 type ContentBlock =
@@ -44,7 +92,13 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+    // 模型参数与工具栏 UI
+    const [params, setParams] = useState<ModelParams>(DEFAULT_PARAMS);
+    const [showModelPicker, setShowModelPicker] = useState(false);
+    const [showThinkingMenu, setShowThinkingMenu] = useState(false);
+    const [showSettingsPopover, setShowSettingsPopover] = useState(false);
+    const [showUploadMenu, setShowUploadMenu] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,7 +107,17 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   const cost = getTaskCost('dialogue');
 
   const currentConversation = conversations.find((c) => c.id === currentConversationId);
-  const messages = currentConversation?.messages || [];
+    const messages = currentConversation?.messages || [];
+
+    // 当前会话 token 估算（用于顶部进度条）
+    const currentConversationTokenUsage = useMemo(() => {
+      if (!currentConversation) return 0;
+      let total = 0;
+      for (const msg of currentConversation.messages) {
+        total += estimateTokens(msg.content || '');
+      }
+      return total / 1000; // 转为 k
+    }, [currentConversation]);
 
   // 加载会话
   useEffect(() => {
@@ -94,6 +158,20 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
       console.warn('[AIDialog] 保存失败:', e);
     }
   }, [conversations, currentConversationId, input, isLoaded]);
+
+  // 点击外部关闭 popover
+  useEffect(() => {
+    if (!showUploadMenu && !showThinkingMenu && !showSettingsPopover) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-toolbar-popover]')) return;
+      setShowUploadMenu(false);
+      setShowThinkingMenu(false);
+      setShowSettingsPopover(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showUploadMenu, showThinkingMenu, showSettingsPopover]);
 
   // 将 File 转换为 base64 data URL（Promise 化，确保读完再继续）
   const readFileAsDataUrl = (file: File): Promise<string> => {
@@ -307,6 +385,12 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           body: JSON.stringify({
             messages: messagesToSend,
             ...(currentServerConvId ? { conversationId: currentServerConvId } : {}),
+            model: params.model,
+            temperature: params.temperature,
+            max_tokens: params.max_tokens,
+            top_p: params.top_p,
+            thinking_depth: params.thinkingDepth,
+            system_prompt: params.systemPrompt || undefined,
           }),
           signal: abortControllerRef.current!.signal,
         });
@@ -667,6 +751,21 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
         <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]">
           <div className="max-w-3xl mx-auto">
             <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-4">
+              {/* 顶部 token 统计（参考 Cursor 风格） */}
+              {currentConversation && currentConversation.messages.length > 0 && (
+                <div className="flex items-center justify-between mb-2 text-[11px] text-[var(--text-muted)]">
+                  <span>
+                    {currentConversationTokenUsage.toFixed(1)}k / 1.0M · 剩余 {(1000 - currentConversationTokenUsage).toFixed(1)}k
+                  </span>
+                  <div className="w-24 h-1 bg-[var(--bg-hover)] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[var(--text-muted)] transition-all"
+                      style={{ width: `${Math.min(100, (currentConversationTokenUsage / 1000) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* 已上传图片预览 */}
               {uploadedImages.length > 0 && (
                 <div className="flex gap-2 mb-3 flex-wrap">
@@ -719,37 +818,208 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
                 disabled={isLoading}
               />
 
-              {/* 底部操作栏 */}
+              {/* 底部工具栏（Cursor/Claude 风格） */}
               <div className="flex items-center justify-between pt-3 border-t border-[var(--border-color)] mt-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  {/* + 加号 popover */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowUploadMenu(!showUploadMenu);
+                        setShowThinkingMenu(false);
+                        setShowSettingsPopover(false);
+                      }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                      title="上传"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                    {showUploadMenu && (
+                      <div data-toolbar-popover className="absolute bottom-full left-0 mb-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg shadow-xl py-1 w-40 z-50">
+                        <button
+                          onClick={() => {
+                            imageInputRef.current?.click();
+                            setShowUploadMenu(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] flex items-center gap-2"
+                        >
+                          <ImageIcon className="w-4 h-4" />上传图片
+                        </button>
+                        <button
+                          onClick={() => {
+                            fileInputRef.current?.click();
+                            setShowUploadMenu(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] flex items-center gap-2"
+                        >
+                          <FileText className="w-4 h-4" />上传文件
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 思考深度 */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowThinkingMenu(!showThinkingMenu);
+                        setShowUploadMenu(false);
+                        setShowSettingsPopover(false);
+                      }}
+                      className={cn(
+                        'h-7 px-2 rounded-lg flex items-center gap-1 text-[13px] transition-all',
+                        params.thinkingDepth === 'high'
+                          ? 'text-[var(--gold)] hover:bg-[var(--bg-hover)]'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                      )}
+                      title="思考深度"
+                    >
+                      <Brain className="w-4 h-4" />
+                      <span>
+                        {params.thinkingDepth === 'high' && '高'}
+                        {params.thinkingDepth === 'medium' && '中'}
+                        {params.thinkingDepth === 'low' && '低'}
+                      </span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {showThinkingMenu && (
+                      <div data-toolbar-popover className="absolute bottom-full left-0 mb-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg shadow-xl py-1 w-32 z-50">
+                        {(['high', 'medium', 'low'] as const).map((level) => (
+                          <button
+                            key={level}
+                            onClick={() => {
+                              setParams({ ...params, thinkingDepth: level });
+                              setShowThinkingMenu(false);
+                            }}
+                            className={cn(
+                              'w-full px-3 py-2 text-left text-sm transition-all',
+                              params.thinkingDepth === level
+                                ? 'text-[var(--gold)] bg-[var(--bg-hover)]'
+                                : 'text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                            )}
+                          >
+                            {level === 'high' && '高 · 深度思考'}
+                            {level === 'medium' && '中 · 平衡'}
+                            {level === 'low' && '低 · 快速'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 设置 */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowSettingsPopover(!showSettingsPopover);
+                        setShowUploadMenu(false);
+                        setShowThinkingMenu(false);
+                      }}
+                      className="h-7 px-2 rounded-lg flex items-center gap-1 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all"
+                      title="参数设置"
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>设置</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {showSettingsPopover && (
+                      <div data-toolbar-popover className="absolute bottom-full left-0 mb-2 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg shadow-xl p-4 w-72 z-50 space-y-3">
+                        <div>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">
+                            Temperature: {params.temperature.toFixed(2)}
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={params.temperature}
+                            onChange={(e) =>
+                              setParams({ ...params, temperature: parseFloat(e.target.value) })
+                            }
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">
+                            Max Tokens
+                          </label>
+                          <input
+                            type="number"
+                            min="256"
+                            max="32000"
+                            step="256"
+                            value={params.max_tokens}
+                            onChange={(e) =>
+                              setParams({ ...params, max_tokens: parseInt(e.target.value) || 2048 })
+                            }
+                            className="w-full px-2 py-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded text-sm text-[var(--text-primary)]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">
+                            Top-P: {params.top_p.toFixed(2)}
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={params.top_p}
+                            onChange={(e) =>
+                              setParams({ ...params, top_p: parseFloat(e.target.value) })
+                            }
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-[var(--text-secondary)] mb-1">
+                            系统提示词（可选）
+                          </label>
+                          <textarea
+                            value={params.systemPrompt}
+                            onChange={(e) =>
+                              setParams({ ...params, systemPrompt: e.target.value })
+                            }
+                            placeholder="自定义 AI 行为..."
+                            rows={2}
+                            className="w-full px-2 py-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded text-xs text-[var(--text-primary)] resize-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 模型选择 */}
                   <button
-                    onClick={() => imageInputRef.current?.click()}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
-                    title="上传图片"
+                    onClick={() => setShowModelPicker(true)}
+                    className="h-7 px-2 rounded-lg flex items-center gap-1 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all"
+                    title="切换模型"
                   >
-                    <ImageIcon className="w-5 h-5" />
+                    <Sparkles className="w-4 h-4" />
+                    <span>{params.model}</span>
+                    <ChevronDown className="w-3 h-3" />
                   </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
-                    title="上传文件"
-                  >
-                    <Paperclip className="w-5 h-5" />
-                  </button>
-                  {uploadedImages.length > 0 && (
-                    <span className="text-xs text-[var(--gold)]">{uploadedImages.length} 张图片</span>
-                  )}
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-[var(--text-muted)]">Enter 发送 / Shift+Enter 换行</span>
+                <div className="flex items-center gap-2">
+                  {/* 麦克风（占位） */}
+                  <button
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
+                    title="语音输入（即将开放）"
+                    disabled
+                  >
+                    <Mic className="w-4 h-4" />
+                  </button>
+
+                  {/* 发送按钮（圆形图标） */}
                   <button
                     onClick={handleSend}
                     disabled={!input.trim() || isLoading}
-                    className="px-5 py-2 bg-[var(--gold)] text-black font-medium rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--gold-hover)] transition-all"
+                    className="w-8 h-8 rounded-full bg-[var(--gold)] text-black flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--gold-hover)] transition-all"
+                    title="发送 (Enter)"
                   >
-                    <Send className="w-4 h-4" />
-                    发送
+                    <ArrowUp className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -826,6 +1096,14 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           </div>
         </div>
       </div>
+
+        {/* 模型选择 Modal */}
+        <ModelPickerModal
+          isOpen={showModelPicker}
+          onClose={() => setShowModelPicker(false)}
+          selectedModel={params.model}
+          onSelect={(modelId) => setParams({ ...params, model: modelId })}
+        />
 
         {/* 图片预览弹窗（Lightbox） */}
         {lightboxImage && (

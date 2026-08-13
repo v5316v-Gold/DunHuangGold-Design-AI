@@ -29,7 +29,17 @@ export async function POST(request: NextRequest) {
   try {
     // 验证请求参数
     const body = await request.json();
-    const { messages, provider: requestedProvider, conversationId: requestConversationId } = chatSchema.parse(body);
+    const {
+      messages,
+      provider: requestedProvider,
+      conversationId: requestConversationId,
+      model: requestedModel,
+      temperature,
+      max_tokens,
+      top_p,
+      thinking_depth,
+      system_prompt,
+    } = chatSchema.parse(body);
 
     // 调试日志：检查收到的消息是否有图片
     const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
@@ -79,12 +89,12 @@ export async function POST(request: NextRequest) {
     } else {
       selectedProvider = 'minimax';
     }
-    selectedModel = 'MiniMax-M2.7-highspeed';
+    // 优先使用用户选择的 model（来自 ModelPickerModal）
+    selectedModel = requestedModel || 'MiniMax-M2.7-highspeed';
 
-    // 系统提示词
-    const systemMessage = {
-      role: 'system' as const,
-      content: `你是一个专业的 AI 设计助手，专注于帮助用户进行创意设计、文案撰写和艺术创作。
+    // 系统提示词：用户自定义 > 默认
+    const userSystemContent = system_prompt?.trim();
+    const defaultSystemContent = `你是一个专业的 AI 设计助手，专注于帮助用户进行创意设计、文案撰写和艺术创作。
 
 你的能力包括：
 1. 提供设计建议和创意灵感
@@ -99,8 +109,20 @@ export async function POST(request: NextRequest) {
 - 如果是照片，指出其视觉特点和风格
 - 绝对不要只说"收到了您的图片"或"您上传了一张图片"，要真正"看"图并分析
 
-请用专业、友好、简洁的方式回答用户的问题。`,
+请用专业、友好、简洁的方式回答用户的问题。`;
+
+    const systemMessage = {
+      role: 'system' as const,
+      content: userSystemContent || defaultSystemContent,
     };
+
+    // 思考深度提示（注入到 system prompt）
+    const thinkingHint = thinking_depth
+      ? `\n\n【思考模式：${thinking_depth === 'high' ? '深度思考' : thinking_depth === 'medium' ? '平衡' : '快速'}】请按此模式调整回答详尽程度。`
+      : '';
+    if (thinkingHint) {
+      systemMessage.content = systemMessage.content + thinkingHint;
+    }
 
     const allMessages = [systemMessage, ...messages];
 
@@ -113,7 +135,11 @@ export async function POST(request: NextRequest) {
       return await handleOpenClawChat(allMessages, conversationId);
     } else {
       // 使用 Minimax API (默认)
-      return await handleMinimaxChat(allMessages, selectedModel, apiKey, conversationId);
+      return await handleMinimaxChat(allMessages, selectedModel, apiKey, conversationId, {
+        temperature,
+        max_tokens,
+        top_p,
+      });
     }
 
   } catch (error) {
@@ -238,7 +264,13 @@ function callOpenClaw(message: string): Promise<string> {
 /**
  * 处理 Minimax 聊天
  */
-async function handleMinimaxChat(messages: any[], model: string, apiKey: string, conversationId: string) {
+async function handleMinimaxChat(
+  messages: any[],
+  model: string,
+  apiKey: string,
+  conversationId: string,
+  options?: { temperature?: number; max_tokens?: number; top_p?: number }
+) {
   try {
     const minimaxBaseUrl = process.env.MINIMAX_API_BASE || 'https://api.minimax.chat/v1';
 
@@ -269,6 +301,10 @@ async function handleMinimaxChat(messages: any[], model: string, apiKey: string,
         messages: messages,
         stream: true,
         use_standard_stream: true,
+        // LLM 调优参数（来自用户设置面板）
+        ...(options?.temperature !== undefined && { temperature: options.temperature }),
+        ...(options?.max_tokens !== undefined && { max_tokens: options.max_tokens }),
+        ...(options?.top_p !== undefined && { top_p: options.top_p }),
       }),
     });
 

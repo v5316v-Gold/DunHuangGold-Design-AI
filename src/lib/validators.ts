@@ -48,8 +48,16 @@ export const idParamSchema = z.object({
 /** AI 对话 */
 export const chatSchema = z.object({
   messages: z.array(chatMessageSchema).min(1, '消息列表不能为空'),
-  provider: z.enum(['minimax', 'openclaw']).optional(),
+  provider: z.enum(['minimax', 'openclaw', 'anthropic', 'qwen', 'deepseek', 'custom']).optional(),
   conversationId: z.string().optional(),
+  // 模型选择（来自 ModelPickerModal）
+  model: z.string().optional(),
+  // LLM 调优参数
+  temperature: z.coerce.number().min(0).max(2).optional(),
+  max_tokens: z.coerce.number().int().min(256).max(32000).optional(),
+  top_p: z.coerce.number().min(0).max(1).optional(),
+  thinking_depth: z.enum(['low', 'medium', 'high']).optional(),
+  system_prompt: z.string().max(2000).optional(),
 });
 
 /** AI 写作助手 */

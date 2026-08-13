@@ -81,6 +81,7 @@ const QUEUE_NAME = 'ai-tasks';
 const worker = new Worker(
   QUEUE_NAME,
   async (job) => {
+    logger.info(`[worker] 收到 BullMQ 任务, job.data=${JSON.stringify(job.data).substring(0, 500)}`);
     const featureId = job.data.featureId ?? job.data.serviceType;
     const userId = job.data.userId;
     const params = job.data.params ?? job.data.inputs ?? {};
