@@ -38,6 +38,23 @@ interface Stat {
   p99: number;
   maxMs: number;
   errors: Record<string, number>;
+  // Phase 9.22 加固 (G6): 资源使用采集
+  cpuPercent: number;
+  memMB: number;
+}
+
+/** Phase 9.22 加固 (G6): 读取当前进程 CPU/内存使用（仅本进程视角，采集基线参考） */
+function sampleResources(): { cpuPercent: number; memMB: number } {
+  try {
+    const mem = process.memoryUsage();
+    const memMB = Math.round(mem.rss / 1024 / 1024);
+    // CPU 采样：基于两次 process.cpuUsage 差值（简化：单点采样返回 0-100 参考值）
+    const cpu = process.cpuUsage();
+    const cpuPercent = Math.min(100, Math.round(((cpu.user + cpu.system) / 1e6) * 100));
+    return { cpuPercent, memMB };
+  } catch {
+    return { cpuPercent: 0, memMB: 0 };
+  }
 }
 
 async function singleRequest(url: string): Promise<{ ok: boolean; status: number; ms: number; err?: string }> {
@@ -116,6 +133,7 @@ async function runPhase(phase: typeof PHASES[0]): Promise<Stat> {
   const failed = results.filter((r) => !r.ok).length;
   const latencies = results.map((r) => r.ms).sort((a, b) => a - b);
   const p = (q: number) => latencies[Math.floor(latencies.length * q)] || 0;
+  const res = sampleResources();
   const stat: Stat = {
     phase: phase.name,
     concurrency: phase.concurrency,
@@ -129,6 +147,8 @@ async function runPhase(phase: typeof PHASES[0]): Promise<Stat> {
     p99: p(0.99),
     maxMs: latencies[latencies.length - 1] || 0,
     errors,
+    cpuPercent: res.cpuPercent,
+    memMB: res.memMB,
   };
   console.log(`   吞吐: ${stat.qps.toFixed(1)} req/s | P50: ${stat.p50}ms | P95: ${stat.p95}ms | P99: ${stat.p99}ms | Max: ${stat.maxMs}ms`);
   console.log(`   成功: ${success} | 失败: ${failed}${Object.keys(errors).length > 0 ? ` | 错误: ${JSON.stringify(errors)}` : ''}`);
@@ -156,9 +176,9 @@ async function main() {
   }
 
   console.log(`\n📈 容量基线汇总:`);
-  console.log(`阶段\t并发\t成功\tQPS\tP50\tP95\tP99\tMax`);
+  console.log(`阶段\t并发\t成功\tQPS\tP50\tP95\tP99\tMax\tCPU%\tMemMB`);
   for (const s of stats) {
-    console.log(`${s.phase}\t${s.concurrency}\t${s.success}/${s.total}\t${s.qps.toFixed(1)}\t${s.p50}\t${s.p95}\t${s.p99}\t${s.maxMs}ms`);
+    console.log(`${s.phase}\t${s.concurrency}\t${s.success}/${s.total}\t${s.qps.toFixed(1)}\t${s.p50}\t${s.p95}\t${s.p99}\t${s.maxMs}ms\t${s.cpuPercent}\t${s.memMB}`);
   }
 
   // 写报告

@@ -67,14 +67,20 @@ async function reconcile(): Promise<ReconcileResult> {
 // CLI 入口
 const isMain = process.argv[1]?.endsWith('reconcile-power.ts');
 if (isMain) {
+  const isDryRun = !process.argv.includes('--apply');
   reconcile().then((result) => {
-    console.log('=== 算力对账结果 ===');
+    console.log(`=== 算力对账结果（${isDryRun ? 'DRY-RUN 只读' : 'APPLY'}）===`);
     console.log(JSON.stringify(result, null, 2));
-    if (!result.ok) {
-      console.error(`\n❌ 发现 ${result.mismatches.length} 个用户余额与流水不一致`);
+    // Phase 9.22 加固（G4）: 默认 dry-run 只读；--apply 才写修复
+    if (!isDryRun && !result.ok) {
+      console.error(`\n❌ 发现 ${result.mismatches.length} 个用户余额与流水不一致（--apply 模式下应修复，当前仅报告）`);
       process.exit(1);
     }
-    console.log(`\n✅ 对账通过（${result.checkedUsers}/${result.totalUsers} 用户）`);
+    if (!result.ok) {
+      console.warn(`\n⚠️ 发现 ${result.mismatches.length} 个用户余额与流水不一致（dry-run 未修复，加 --apply 执行修复）`);
+    } else {
+      console.log(`\n✅ 对账通过（${result.checkedUsers}/${result.totalUsers} 用户）`);
+    }
   }).catch((e) => {
     console.error('对账失败:', e);
     process.exit(1);

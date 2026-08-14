@@ -158,47 +158,30 @@ export class GenerationPipeline {
    */
   private async executeMinimaxFallback(req: GenerationRequest): Promise<GenerationResult> {
     try {
-      const { width = 512, height = 512, count = 1, prompt = '' } = req;
-
-      const apiConfig = await import('@/lib/api-config-service').then(m =>
-        m.getApiConfig('image-generate')
-      );
-
-      if (!apiConfig?.apiKey) {
-        return { success: false, error: 'Minimax API 未配置', provider: 'minimax' };
+      const { count = 1, prompt = '' } = req;
+      if (!prompt) {
+        return { success: false, error: 'Minimax 兜底需要 prompt', provider: 'minimax' };
       }
 
-      const sizeStr = `${width}x${height}`;
-      const response = await fetch('https://api.minimax.chat/v1/image_generation', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiConfig.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'image-01',
-          prompt,
-          num_images: normalizeCount(count),
-          size: sizeStr,
-        }),
+      // G7/G8 加固 (Phase 9.22): 统一走 minimax-call-service（错误标准化 + retry 语义）
+      const { minimaxImageGen } = await import('@/lib/minimax-call-service');
+      const r = await minimaxImageGen({
+        prompt,
+        n: normalizeCount(count),
+        featureId: 'text2img',
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
+      if (!r.success || !r.data) {
         return {
           success: false,
-          error: `Minimax API 错误 (${response.status})`,
+          error: r.error || 'Minimax 调用失败',
           provider: 'minimax',
         };
       }
-
-      const result = await response.json();
-      const imageUrls: string[] = result.data?.image_urls || [];
-
+      const imageUrls: string[] = r.data.image_urls || [];
       if (imageUrls.length === 0) {
         return { success: false, error: 'Minimax 未返回有效图片', provider: 'minimax' };
       }
-
       return { success: true, data: imageUrls, provider: 'minimax' };
     } catch (error) {
       logger.error('[MinimaxFallback] 调用失败', error);

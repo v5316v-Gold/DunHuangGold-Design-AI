@@ -49,6 +49,22 @@ jobs:
           path: node_modules
           retention-days: 1
 
+  # ===== 1.5 ESLint（G9: 独立 lint job，fail-fast） =====
+  lint:
+    name: 🧹 ESLint
+    needs: install
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/download-artifact@v4
+        with: { name: node_modules, path: node_modules }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: ESLint (0 warnings required)
+        run: pnpm exec eslint src/ --max-warnings 0
+
   # ===== 2. 类型检查 =====
   typecheck:
     name: 🔍 TypeScript
@@ -142,7 +158,7 @@ jobs:
   # ===== 5. 生产构建（验证 standalone 可生成） =====
   build:
     name: 🏗 Build (standalone)
-    needs: [typecheck, test, migration]
+    needs: [lint, typecheck, test, migration]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
