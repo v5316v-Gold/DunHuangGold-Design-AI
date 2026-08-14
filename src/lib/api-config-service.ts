@@ -395,7 +395,8 @@ function loadApiKeysFromEnv(): void {
     'llm-chat': process.env.ZHIPU_API_KEY || process.env.QWEN_API_KEY || process.env.LLM_API_KEY || '',
     'image-generate': process.env.MINIMAX_API_KEY || process.env.IMAGE_API_KEY || process.env.ZHIPU_API_KEY || '',
     '3d-modeling': process.env.MESHY_API_KEY || process.env.IMAGE_API_KEY || process.env.ZHIPU_API_KEY || '',
-    'video-generate': process.env.VIDEO_API_KEY || process.env.ZHIPU_API_KEY || '',
+    // Phase 9.22: video-generate 优先用 MINIMAX_API_KEY
+    'video-generate': process.env.MINIMAX_API_KEY || process.env.VIDEO_API_KEY || process.env.ZHIPU_API_KEY || '',
     'image-edit': process.env.MINIMAX_API_KEY || process.env.IMAGE_API_KEY || process.env.ZHIPU_API_KEY || '',
   };
 

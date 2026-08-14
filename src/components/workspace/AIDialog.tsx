@@ -1064,7 +1064,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
         <div className="p-5">
           <h3 className="text-base font-semibold text-[var(--text-primary)] mb-5 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[var(--gold)]" />
-            敦煌设计助手
+            敦煌金设计助手
           </h3>
 
           {/* 场景指令预设库（9 个专家角色 · 平铺） */}

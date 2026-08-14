@@ -535,10 +535,10 @@ export function toggleApiSource(apiId: string, source?: PowerSource): PowerSourc
 
 // API Key 环境变量映射（按优先级查找）
 const _envKeyMap: Record<string, string> = {
-  'llm-chat': process.env.ZHIPU_API_KEY || process.env.QWEN_API_KEY || process.env.LLM_API_KEY || '',
+  'llm-chat': process.env.MINIMAX_API_KEY || process.env.ZHIPU_API_KEY || process.env.QWEN_API_KEY || process.env.LLM_API_KEY || '',
   'image-generate': process.env.MINIMAX_API_KEY || process.env.IMAGE_API_KEY || process.env.ZHIPU_API_KEY || '',
-  '3d-modeling': process.env.MESHY_API_KEY || process.env.IMAGE_API_KEY || process.env.ZHIPU_API_KEY || '',
-  'video-generate': process.env.ZHIPU_API_KEY || process.env.VIDEO_API_KEY || '',
+  '3d-modeling': process.env.MINIMAX_API_KEY || process.env.MESHY_API_KEY || process.env.IMAGE_API_KEY || process.env.ZHIPU_API_KEY || '',
+  'video-generate': process.env.MINIMAX_API_KEY || process.env.VIDEO_API_KEY || process.env.ZHIPU_API_KEY || '',
   'image-edit': process.env.MINIMAX_API_KEY || process.env.IMAGE_API_KEY || process.env.ZHIPU_API_KEY || '',
 };
 

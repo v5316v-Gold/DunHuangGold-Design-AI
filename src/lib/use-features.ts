@@ -9,6 +9,7 @@ export interface PublicFeature {
   category?: string;
   icon?: string;
   order?: number;
+  sortOrder?: number;
   /** 启用开关（管理员可在后台实时切换） */
   enabled?: boolean;
 }

@@ -44,7 +44,7 @@ const FEATURES = [
   { id: 'removebg', name: '移除背景', category: 'image', cost: 5, defaultExecutor: 'third-party', fallback: ['comfyui', 'mock'], sortOrder: 13, displayGroup: '实用工具', icon: 'Eraser' },
   { id: 'upscale', name: '高清放大', category: 'image', cost: 5, defaultExecutor: 'third-party', fallback: ['comfyui', 'mock'], sortOrder: 14, displayGroup: '实用工具', icon: 'Maximize2' },
   { id: 'watermark', name: '去除水印', category: 'image', cost: 5, defaultExecutor: 'third-party', fallback: ['comfyui', 'mock'], sortOrder: 15, displayGroup: '实用工具', icon: 'Droplet' },
-  { id: 'dialogue', name: 'AI对话', category: 'chat', cost: 2, defaultExecutor: 'third-party', fallback: ['mock'], sortOrder: 16, displayGroup: '灵感与创作', icon: 'MessageSquare' },
+  { id: 'dialogue', name: 'AI对话', category: 'chat', cost: 2, defaultExecutor: 'third-party', fallback: ['mock'], sortOrder: 0, displayGroup: '灵感与创作', icon: 'MessageSquare' },
   { id: 'tryon', name: '佩戴效果', category: 'image', cost: 25, defaultExecutor: 'third-party', fallback: ['mock'], sortOrder: 17, displayGroup: '实用工具', icon: 'Shirt' },
 ];
 

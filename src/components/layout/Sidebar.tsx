@@ -127,7 +127,7 @@ function buildMenuGroups(features: PublicFeature[]) {
     .filter((k) => groups[k])
     .map((title) => ({
       title,
-      items: groups[title].sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
+      items: groups[title].sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)),
     }));
 }
 
