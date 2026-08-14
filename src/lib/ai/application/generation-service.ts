@@ -164,6 +164,24 @@ class GenerationService {
       };
     }
 
+    // 1.5 Phase 9.23 · 禁止字段：用户不可指定 workflow/model/lora/controlnet/provider
+    // 架构约束（docs §15 禁止事项）：API Route 和前端严禁绕过 featureId 直接指定底层资源
+    const FORBIDDEN_KEYS = [
+      'workflowId', 'workflow_id', 'workflowVersion', 'workflow_version',
+      'model', 'modelId', 'model_id', 'modelName',
+      'lora', 'loras', 'loraId', 'lora_id',
+      'controlnet', 'controlnets', 'controlnetId',
+      'provider', 'executor', 'executorId', 'executorType',
+    ];
+    const foundForbidden = FORBIDDEN_KEYS.filter((k) => k in (params ?? {}));
+    if (foundForbidden.length > 0) {
+      return {
+        success: false,
+        code: 'INVALID_INPUT',
+        message: `普通用户不可指定底层资源: ${foundForbidden.join(', ')}。请仅提交 featureId + 业务参数`,
+      };
+    }
+
     // 2. 算力预扣（前置检查，不落账——落账在任务完成时 consume）
     const cost = getFeatureCost(featureId);
     const hasPower = await checkUserPower(userId, cost);
@@ -516,6 +534,23 @@ class GenerationService {
     traceId?: string;
   }> {
     const traceId = ctx.traceId ?? ctx.requestId;
+
+    // Phase 9.23 · executeSync 也需禁止字段校验（防止用户绕过 create 走 sync）
+    const FORBIDDEN_KEYS = [
+      'workflowId', 'workflow_id', 'workflowVersion', 'workflow_version',
+      'model', 'modelId', 'model_id', 'modelName',
+      'lora', 'loras', 'loraId', 'lora_id',
+      'controlnet', 'controlnets', 'controlnetId',
+      'provider', 'executor', 'executorId', 'executorType',
+    ];
+    const foundForbidden = FORBIDDEN_KEYS.filter((k) => k in (input.params ?? {}));
+    if (foundForbidden.length > 0) {
+      return {
+        success: false,
+        error: { code: 'INVALID_INPUT', message: `普通用户不可指定底层资源: ${foundForbidden.join(', ')}` },
+      };
+    }
+
     const result = await policyOrchestrator.execute({
       featureId: input.featureId,
       userId,

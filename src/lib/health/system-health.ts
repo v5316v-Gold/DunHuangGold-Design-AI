@@ -126,7 +126,7 @@ async function checkWorkers(): Promise<SystemCheckResult> {
   };
 }
 
-/** ComfyUI 状态 + 队列长度 */
+/** ComfyUI 状态 + 队列长度 + Workflow Registry（Phase 9.23 §3.3） */
 async function checkComfyUI(): Promise<SystemCheckResult> {
   const host = process.env.COMFYUI_HOST || 'http://localhost:8188';
   const r = await probe(async () => {
@@ -149,11 +149,53 @@ async function checkComfyUI(): Promise<SystemCheckResult> {
     };
   }, 5000);
 
+  // Phase 9.23 §3.3：附加 Workflow Registry 状态
+  let registrySummary: Record<string, unknown> = {};
+  if (db) {
+    try {
+      const { sql } = await import('drizzle-orm');
+      // Active Workflows
+      const activeRes = await db.execute<{ count: number }>(sql`
+        SELECT COUNT(*)::int as count FROM comfyui_configs
+        WHERE lifecycle = 'active' AND active_version_id IS NOT NULL
+      `);
+      // Registered Models（按状态分组）
+      const modelsRes = await db.execute<{ status: string; count: number }>(sql`
+        SELECT status, COUNT(*)::int as count FROM model_registry GROUP BY status
+      `);
+      // Custom Node health（最近一次缺失数量）
+      const nodesRes = await db.execute<{ missing: number }>(sql`
+        SELECT COUNT(*) FILTER (WHERE NOT available)::int as missing
+        FROM workflow_node_checks
+        WHERE checked_at > NOW() - INTERVAL '7 days'
+      `);
+      const totalModels = (modelsRes.rows ?? []).reduce((s, r) => s + (r.count ?? 0), 0);
+      const missingModels = (modelsRes.rows ?? []).filter((r) => r.status !== 'available').reduce((s, r) => s + (r.count ?? 0), 0);
+      registrySummary = {
+        activeWorkflows: activeRes.rows?.[0]?.count ?? 0,
+        registeredModels: {
+          total: totalModels,
+          available: totalModels - missingModels,
+          missing: missingModels,
+          byStatus: (modelsRes.rows ?? []).reduce((acc: Record<string, number>, r) => {
+            acc[r.status] = r.count;
+            return acc;
+          }, {}),
+        },
+        customNodeHealth: {
+          missingLast7d: nodesRes.rows?.[0]?.missing ?? 0,
+        },
+      };
+    } catch {
+      // 静默失败，不影响 ComfyUI 自身状态
+    }
+  }
+
   return {
     status: r.ok ? 'ok' : 'down',
     latencyMs: r.latencyMs,
     detail: r.ok ? undefined : r.error,
-    data: r.data as Record<string, unknown> | undefined,
+    data: { ...(r.data as Record<string, unknown> ?? {}), ...registrySummary },
     checkedAt: new Date().toISOString(),
   };
 }

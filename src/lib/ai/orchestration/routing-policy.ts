@@ -5,6 +5,8 @@
  *
  * 职责：给定功能，决定主执行器 + 兜底链。
  * 配置来源优先级：DB features 表（default_executor / fallback_executors）→ seed → 默认。
+ *
+ * Phase 9.23 扩展：ExecutorType 增加 'hermes'
  */
 
 import type { ExecutorType } from '../ports/executor.port';
@@ -21,10 +23,11 @@ export interface FeatureRoutingConfig {
 }
 
 /** 已知执行器顺序（用于排序/补全兜底链） */
-const KNOWN_ORDER: ExecutorType[] = ['third-party', 'comfyui', 'mock'];
+const KNOWN_ORDER: ExecutorType[] = ['third-party', 'comfyui', 'mock', 'hermes'];
 
 function normalize(value: string): ExecutorType | null {
-  if (value === 'third-party' || value === 'comfyui' || value === 'mock') {
+  // Phase 9.23：兼容新增 'hermes'（AI 对话）
+  if (value === 'third-party' || value === 'comfyui' || value === 'mock' || value === 'hermes') {
     return value;
   }
   return null;

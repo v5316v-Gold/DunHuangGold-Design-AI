@@ -7,9 +7,29 @@
  * - 创建任务时生成并持久化（tasks 表 execution_plan 列或独立表）
  * - Worker 消费时读取 plan，按 fallbackChain 依次尝试执行器
  * - 重试时基于 plan 重新执行，不重新路由
+ *
+ * Phase 9.23 · Workflow Asset Closure：
+ *   - 冻结 workflowVersion / models / loras / controlnets / executorId / fallbackChain
+ *   - 即使管理员切换 Active Workflow，已创建任务的 ExecutionPlan 不变
+ *   - disabled 模型不会被写入新 ExecutionPlan
  */
 
 import type { ExecutorType } from '../ports/executor.port';
+
+/** 模型快照（Phase 9.23 冻结） */
+export interface ModelSnapshot {
+  id: string;
+  sha256: string;
+  status: 'available' | 'missing' | 'disabled' | 'incompatible';
+}
+
+/** LoRA / ControlNet 快照（Phase 9.23 冻结） */
+export interface AssetSnapshot {
+  id: string;
+  sha256: string;
+  triggerWords?: string[];
+  weight?: number;
+}
 
 // ==================== 执行计划 ====================
 
@@ -27,6 +47,12 @@ export interface ExecutionPlan {
   workflowId?: string;
   /** 工作流版本（immutable，ADR-009） */
   workflowVersion?: number;
+  /** Phase 9.23：模型快照（创建时 frozen，运行中不变） */
+  models: ModelSnapshot[];
+  /** Phase 9.23：LoRA 快照 */
+  loras: AssetSnapshot[];
+  /** Phase 9.23：ControlNet 快照 */
+  controlnets: AssetSnapshot[];
   /** 期望成本（预扣用） */
   estimatedCost: number;
   /** 输入参数快照（与任务输入一致，防后续变更） */
@@ -67,6 +93,10 @@ export function createExecutionPlan(input: {
   fallbackChain?: ExecutorType[];
   workflowId?: string;
   workflowVersion?: number;
+  /** Phase 9.23：模型/LoRA/ControlNet 快照（默认值空数组） */
+  models?: ModelSnapshot[];
+  loras?: AssetSnapshot[];
+  controlnets?: AssetSnapshot[];
   estimatedCost: number;
   inputsSnapshot: Record<string, unknown>;
 }): ExecutionPlan {
@@ -78,6 +108,9 @@ export function createExecutionPlan(input: {
     fallbackChain: input.fallbackChain ?? [],
     workflowId: input.workflowId,
     workflowVersion: input.workflowVersion,
+    models: input.models ?? [],
+    loras: input.loras ?? [],
+    controlnets: input.controlnets ?? [],
     estimatedCost: input.estimatedCost,
     inputsSnapshot: input.inputsSnapshot,
     createdAt: new Date().toISOString(),

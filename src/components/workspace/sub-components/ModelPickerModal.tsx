@@ -26,13 +26,18 @@ interface ModelPickerModalProps {
 }
 
 /**
- * 模型选择 Modal
+ * 模型选择 Modal（Phase 9.23 · 用户无感化）
+ *
  * 设计稿参考：Claude/Cursor 风格的"设置会话模型"popup
  * - 顶部：标题 + 关闭
  * - 搜索框（实时过滤）
- * - Provider 分组（折叠/展开 + 计数）
+ * - 来源分组（折叠/展开 + 计数）—— 不展示 "Provider" 概念
  * - 选中模型显示 ✓
- * - 底部：Provider 选择器 + 自定义模型 ID 输入
+ * - 底部：来源选择器 + 自定义模型 ID 输入
+ *
+ * 注意：用户无感（docs §验证标准）—— 不直接暴露 provider 字样
+ *   - 内部仍用 provider 概念传递（API 行为不变）
+ *   - UI 仅展示"来源"或留空
  */
 export function ModelPickerModal({
   isOpen,
@@ -152,7 +157,7 @@ export function ModelPickerModal({
           </div>
         </div>
 
-        {/* Provider List */}
+        {/* 来源列表（用户无感 — docs §验证标准）*/}
         <div className="flex-1 overflow-y-auto px-6 pb-4">
           {loading && (
             <p className="text-sm text-[var(--text-muted)] text-center py-8">加载模型列表...</p>
@@ -167,7 +172,7 @@ export function ModelPickerModal({
               const isExpanded = expandedProviders.has(provider.id) || searchQuery.trim().length > 0;
               return (
                 <div key={provider.id} className="mb-4">
-                  {/* Provider Header */}
+                  {/* 来源分组（用户无感）*/}
                   <button
                     onClick={() => toggleProvider(provider.id)}
                     className="w-full flex items-center justify-between py-2 text-sm hover:opacity-80 transition-all"

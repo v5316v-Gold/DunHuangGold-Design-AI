@@ -1,4 +1,5 @@
-export type ExecutorType = 'mock' | 'comfyui' | 'third-party';
+// Phase 9.23 · Workflow Asset Closure：增加 hermes（AI 对话）+ third-party（Cloud/fallback）
+export type ExecutorType = 'mock' | 'comfyui' | 'third-party' | 'hermes';
 export interface FeatureExecutionRequest {
   featureId: string;
   userId: string;

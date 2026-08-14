@@ -58,10 +58,11 @@ export interface ExecutorRequest {
 
 // ==================== Executor Port ====================
 
-export type ExecutorType = 'mock' | 'comfyui' | 'third-party';
+// Phase 9.23 · 扩展 hermes（AI 对话）+ third-party（Cloud/fallback）
+export type ExecutorType = 'mock' | 'comfyui' | 'third-party' | 'hermes';
 
 export interface Executor {
-  /** 唯一标识（mock / comfyui / third-party） */
+  /** 唯一标识（mock / comfyui / third-party / hermes） */
   readonly id: ExecutorType;
   /** 是否生产可用（mock 仅限非生产，ADR-010） */
   readonly productionSafe: boolean;
@@ -85,4 +86,6 @@ export interface IExecutorRegistry {
 
 // ==================== 默认导出 ====================
 
-export const EXECUTOR_ORDER: ExecutorType[] = ['third-party', 'comfyui', 'mock'];
+// Phase 9.23：默认执行顺序（third-party → comfyui → mock → hermes）
+// 注意：实际路由由 features.default_executor 决定（DB 单一真源）
+export const EXECUTOR_ORDER: ExecutorType[] = ['third-party', 'comfyui', 'mock', 'hermes'];

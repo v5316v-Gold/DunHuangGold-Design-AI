@@ -1,52 +1,33 @@
 /**
- * Phase 9.20 · Minimax Executor（Port 适配器）
+ * MinimaxExecutor = CloudExecutor（Phase 9.23 · Workflow Asset Closure 收编）
  *
- * 实现 Executor Port 接口，委托给 minimax-feature-adapter
- * 作为 ThirdPartyExecutor 的实际实现（替换之前的占位）
+ * 角色：fallback / 特殊能力 provider，仅当主执行器 ComfyUI 不可用时启用
+ * 真实支持功能：text2img / text2video / img2video / dialogue / ai_assistant（5 个）
  *
- * 角色：
- *   - primary executor: text2img / text2video / img2video / dialogue / ai_assistant
- *   - NOT_SUPPORTED: image3d / relief / refine / blend / removebg / upscale /
- *                    watermark / sketch / stereo / multiview / oneclick / free / tryon
- *     （这些降级为 NOT_SUPPORTED 让 ComfyUI 兜底）
+ * 注意：type/id 保留为 'third-party'（已部署路由/audit/seed 一致性），
+ *       但 class 名语义改为 Cloud（fallback 专用）
  */
-
 import type { Executor, ExecutorRequest, ExecutorResult } from '@/lib/ai/ports/executor.port';
 import { executeMinimax, hasMinimaxHandler, MINIMAX_SUPPORTED_FEATURES } from '@/lib/minimax-feature-adapter';
 import { checkMinimaxHealth } from '@/lib/minimax-call-service';
 
-/**
- * MinimaxExecutor：作为 ThirdParty Executor 的实现
- */
 export class MinimaxExecutor implements Executor {
   readonly type = 'third-party' as const;
   readonly id = 'third-party' as const;
   readonly productionSafe = true;
 
   /**
-   * 声明 Minimax 真实支持的功能
-   * （包括 NOT_SUPPORTED 的功能，让 fallback 链走到 ComfyUI）
+   * 仅声明 5 个真支持功能（其它功能直接 NOT_SUPPORTED → 路由跳出 fallback）
+   * Phase 9.23 收口变更：capabilities 从 17 全集收窄为 5 真支持集
    */
   capabilities(): Set<string> {
-    // 返回全集：所有 17 个功能 Minimax 都会"接"（但仅 5 个真支持）
-    return new Set([
-      'text2img', 'text2video', 'img2video', 'dialogue', 'ai_assistant',
-      'refine', 'blend', 'removebg', 'upscale', 'watermark',
-      'sketch', 'stereo', 'multiview', 'oneclick', 'free', 'tryon',
-      'image3d', 'relief',
-    ]);
+    return new Set(MINIMAX_SUPPORTED_FEATURES);
   }
 
-  /**
-   * 健康检查（调 /v1/models）
-   */
   async isAvailable(): Promise<boolean> {
     return checkMinimaxHealth();
   }
 
-  /**
-   * 执行（委托给 feature-adapter）
-   */
   async execute(req: ExecutorRequest): Promise<ExecutorResult> {
     if (!hasMinimaxHandler(req.featureId)) {
       return {
@@ -54,8 +35,8 @@ export class MinimaxExecutor implements Executor {
         executorUsed: this.id,
         error: {
           code: 'NOT_SUPPORTED',
-          message: `Minimax 不支持 ${req.featureId}`,
-          retryable: true,
+          message: `Minimax (Cloud fallback) 不支持 ${req.featureId}`,
+          retryable: false,
         },
         cost: 0,
         latencyMs: 0,
@@ -66,7 +47,5 @@ export class MinimaxExecutor implements Executor {
   }
 }
 
-/**
- * 实际支持的功能列表（仅 5 个真可用）
- */
+/** Minimax 真支持的功能集合（导出供测试 + 路由策略使用） */
 export { MINIMAX_SUPPORTED_FEATURES };

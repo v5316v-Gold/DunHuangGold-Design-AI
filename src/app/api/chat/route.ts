@@ -61,40 +61,15 @@ export async function POST(request: NextRequest) {
       logger.info('收到用户消息（纯文本）', { contentLength: String(lastContent ?? '').length });
     }
 
-    // 从数据库读取 API 配置
-    let apiKey = '';
-    // 默认使用九色鹿 AI (openclaw)
-    let selectedProvider = 'openclaw';
-    let selectedModel = 'MiniMax-M2.7-highspeed';
+    // Phase 9.23：默认 provider = hermes（本地 CLI），失败降级 minimax
+        let apiKey = '';
+        const selectedProvider = 'hermes';
+        const selectedModel = 'hermes-default';
 
-    // 优先从环境变量读取 MiniMax API Key（最可靠）
-    apiKey = process.env.MINIMAX_API_KEY || '';
-
-    if (!apiKey) {
-      // 环境变量也没有，尝试从数据库读取
-      try {
-        const dbConfig = await getApiConfig('llm-chat');
-        if (dbConfig && dbConfig.enabled && dbConfig.apiKey) {
-          apiKey = dbConfig.apiKey;
+        // Hermes 走本机 CLI，无需 API key
+        if (selectedProvider === 'hermes') {
+          apiKey = 'hermes-local';
         }
-      } catch (error) {
-        logger.error('获取API配置失败', error);
-      }
-    }
-
-    // 根据 provider 参数或降级策略决定使用哪个 provider
-    if (requestedProvider && requestedProvider !== 'openclaw') {
-      selectedProvider = requestedProvider;
-    } else {
-      selectedProvider = 'minimax';
-    }
-    // 优先使用用户选择的 model（来自 ModelPickerModal）
-    selectedModel = requestedModel || 'MiniMax-M2.7-highspeed';
-
-    // Hermes 走本机 CLI，无需 API key
-    if (selectedProvider === 'hermes') {
-      apiKey = 'hermes-local';
-    }
 
     // 系统提示词：用户自定义 > 默认
     const userSystemContent = system_prompt?.trim();
