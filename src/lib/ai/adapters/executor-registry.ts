@@ -7,7 +7,7 @@
 
 import { MockExecutor } from '@/lib/orchestrator/executors/mock-executor';
 import { ComfyUIExecutor } from '@/lib/orchestrator/executors/comfyui-executor';
-import { ThirdPartyExecutor } from '@/lib/orchestrator/executors/third-party-executor';
+import { MinimaxExecutor } from '@/lib/orchestrator/executors/minimax-executor';
 import { policyOrchestrator } from '@/lib/ai/orchestration/policy-orchestrator';
 
 // 旧 executor 的 id 是 'mock-local' / 'comfyui' / 'third-party'，
@@ -56,7 +56,9 @@ export function registerExecutors(): void {
   if (initialized) return;
   policyOrchestrator.register(new IdNormalizedExecutor(new MockExecutor()));
   policyOrchestrator.register(new IdNormalizedExecutor(new ComfyUIExecutor()));
-  policyOrchestrator.register(new IdNormalizedExecutor(new ThirdPartyExecutor()));
+  
+  // Phase 9.20: MinimaxExecutor 替代占位的 ThirdPartyExecutor
+  policyOrchestrator.register(new IdNormalizedExecutor(new MinimaxExecutor()));
   initialized = true;
 }
 
