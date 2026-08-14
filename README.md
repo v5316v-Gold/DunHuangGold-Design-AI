@@ -1,214 +1,368 @@
-# 敦煌金 AI 设计平台（DunHuangGold-Design-AI）
+# 敦煌金 AI 设计平台(DunHuangGold Design AI)
 
-> 基于 AI 的多功能创意设计平台：文生图 / 3D 建模 / 视频生成 / 图像编辑 / AI 对话，17 大 AI 功能一站式工作台。
+> **AI 赋能的珠宝/文化创意设计平台** · 本地 ComfyUI + 云侧 Minimax + Hermes Agent 三执行器协作
 
-## 技术栈
+[![Next.js](https://img.shields.io/badge/Next.js-15.2.3-black)](https://nextjs.org) [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org) [![License](https://img.shields.io/badge/license-proprietary-red)]() [![Status](https://img.shields.io/badge/status-production--ready-brightgreen)]()
 
-| 层 | 技术 |
-|----|------|
-| 前端 | Next.js 15.2.3 (App Router) · React 19.2.3 · shadcn/ui · Tailwind CSS v4 |
-| 后端 | Next.js API Routes（96 路由）· Drizzle ORM 0.45 · PostgreSQL 18.4 |
-| 队列 | BullMQ 6 + Redis 7（异步任务）|
-| AI 网关 | ComfyUI（本地）· MiniMax M3/M2.5（云端）· Mock（开发降级）|
-| 安全 | AES-256-GCM 加密 · JWT 校验 · 限流 · 幂等防双扣 |
-| 可观测 | Sentry · telemetry 14 字段 · 健康检查 · 容量基线 |
-| 质量 | TypeScript 5.9 strict · ESLint 9 (flat) 0 警告 · Vitest · Playwright |
-| 部署 | Docker Compose（web/worker/postgres/redis）· pnpm 9 · CI/CD |
+---
 
-## 功能总览（17 大 AI 功能）
+## 🎯 平台定位
 
-| 分组 | 功能 |
-|------|------|
-| 灵感与创作 | **AI 对话**（置顶）· 文案生图 · 产品精修 · 多图融合 · 一键设计 · 生成多视图 · 线稿/写实 · 自由创作区 |
-| 浮雕圆雕 | 浮雕图生成 · 3D 模型生成 · 平面转雕塑 |
-| 生成视频 | 文生视频 · 图生视频（MiniMax video-01）|
-| 实用工具 | 移除背景 · 高清放大 · 去除水印 · 佩戴效果 |
+敦煌金 AI 设计平台是为珠宝/文化创意行业打造的 **AI 协同设计工作台**:
 
-## 架构（5 层）
+- **17 个前台功能**(16 个设计类 + 1 个 AI 对话)统一通过 `featureId` 调用,用户无需感知底层模型
+- **本地 ComfyUI** 为主执行器(隐私、可控、低成本),**云侧 Minimax** 作为 fallback
+- **AI 对话** 走 Hermes Agent CLI(本机),底层可调 MiniMax 等大模型
+- **完整资产闭环**:Feature → Workflow → Model Assets → ComfyUI Runtime
+
+---
+
+## 🏗️ 架构(5 层 Hexagonal)
 
 ```
-L1 Presentation   Next.js pages / workspace / admin
-L2 API Layer      Auth / validation / REST（统一 envelope + requestId）
-L3 Orchestration  GenerationService / PolicyOrchestrator / Executor Ports / BullMQ
-L4 Data           PostgreSQL / Redis / Repositories / Power Ledger
-L5 Runtime        Worker / ComfyUI / Cloud / Docker / Health
+┌────────────────────────────────────────────────────────────────┐
+│ L1 · Presentation  Next.js 15.2.3 App Router                  │
+│   ├─ /api (48 production routes)                               │
+│   ├─ /admin (后台 UI:模型中心 + 系统健康 + 工作流配置)         │
+│   └─ /workspace (前台 17 功能面板)                             │
+├────────────────────────────────────────────────────────────────┤
+│ L2 · Application(application/)                                │
+│   ├─ GenerationService(幂等防双扣 + 拒绝覆盖底层字段)         │
+│   ├─ PowerLedger(算力账本 三态 reserve/consume/release)        │
+│   └─ Telemetry(18 字段落库)                                    │
+├────────────────────────────────────────────────────────────────┤
+│ L3 · Orchestration(ai/orchestration/)                         │
+│   ├─ PolicyOrchestrator(路由+重试+降级+ExecutionPlan)         │
+│   ├─ RoutingPolicy / RetryPolicy / FallbackPolicy              │
+│   └─ ExecutionPlan(冻结:featureId/workflowVersion/models/      │
+│       loras/controlnets/executorId/fallbackChain)               │
+├────────────────────────────────────────────────────────────────┤
+│ L4 · AI Adapters                                                │
+│   ├─ ComfyUIExecutor(16 设计类 主执行器)                       │
+│   ├─ HermesAgentExecutor(dialogue 主执行器)                    │
+│   └─ MinimaxExecutor = CloudExecutor(fallback 5 真支持)        │
+├────────────────────────────────────────────────────────────────┤
+│ L5 · Infrastructure                                             │
+│   ├─ PostgreSQL 18.4-alpine(21+ 表)                            │
+│   ├─ Redis 7-alpine(BullMQ + 幂等 + 缓存)                      │
+│   └─ ComfyUI 0.18.2(:8188 本机)                                │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-**关键设计决策（ADR 摘要）**：
+**依赖方向**:L1 → L2 → L3 → L4 → L5(单向,绝无反向)
 
-- **统一生成入口**：`src/lib/ai/application/generation-service.ts` 承载 create/query/cancel/retry/settlePower 全生命周期，路由只做 HTTP 解析
-- **策略驱动编排**：`routing-policy`（主执行器+兜底链）→ `retry-policy`（指数退避）→ `fallback-policy`（降级链）
-- **通用 Provider 框架**：`Executor Port`（mock/comfyui/minimax 三执行器可替换）+ `minimax-feature-adapter`（17 功能 ID 分发）
-- **算力账本**：PowerLedger 三态（reserve → consume/release），重复提交不双扣（幂等键）
-- **任务状态机**：7 状态（queued → processing → completed/failed/cancelled/dead_letter），非法流转拒绝
-- **数据库单真源**：Drizzle schema（`src/db/schema/`）+ 7 个 SQL 迁移（`src/db/migrations/`）
+---
 
-## 快速开始
+## 🚀 快速开始(5 步)
 
-### 前置要求
+### 0. 前置依赖
 
-- Node.js 20 LTS + pnpm 9
-- Docker Desktop（WSL2 / Linux 均可）
-- 国内网络环境（Minimax API 可达）
+- **Node.js** ≥ 20 LTS
+- **pnpm** ≥ 9
+- **Docker Desktop**(或 WSL2 + Docker)
+- **ComfyUI** 0.18+ 在 `localhost:8188` 运行
+- **模型文件**:ComfyUI 标准目录(checkpoints/loras/controlnet/vae)
 
-### 1. 安装依赖
+### 1. 克隆 & 安装
 
 ```bash
+git clone git@github.com:v5316v-Gold/DunHuangGold-Design-AI.git
+cd DunHuangGold-Design-AI
 pnpm install
 ```
 
 ### 2. 环境变量
 
-复制 `.env.example` 为 `.env.local`，至少配置：
-
 ```bash
-# 数据库（Docker Compose 启动后）
-DATABASE_URL=postgresql://dunhuang1:dunhuang2026@localhost:5432/dunhuang
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=<32+ 随机字符>
-API_KEY_ENCRYPTION_KEY=<64 位 hex>
-
-# Minimax（国内可达 · 对话/图片/视频全支持）
-MINIMAX_API_KEY=sk-cp-xxx
-MINIMAX_API_BASE=https://api.minimax.chat/v1
-MINIMAX_MODEL=MiniMax-M2.5-highspeed
+cp .env.example .env.local
+# 编辑 .env.local,填写必填项(见下表)
 ```
 
-### 3. 启动数据库（Docker Compose）
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `DATABASE_URL` | ✅ | `postgresql://user:pass@localhost:5432/dunhuang` |
+| `REDIS_URL` | ✅ | `redis://localhost:6379` |
+| `JWT_SECRET` | ✅ | 90+ 字符随机串 |
+| `API_KEY_ENCRYPTION_KEY` | ✅ | 64 hex(用于 API Key 加密存储) |
+| `MINIMAX_API_KEY` | ✅ | MiniMax 云侧 API Key(Cloud fallback) |
+| `MESHY_API_KEY` | ⚠️ | Meshy 3D(已停用,保留作 fallback) |
+| `COMFYUI_HOST` | ✅ | `http://localhost:8188` |
+| `NODE_ENV` | ✅ | `production`(AI 对话严禁 dev 模式) |
+
+### 3. 启动依赖(Docker Compose)
 
 ```bash
+# PostgreSQL + Redis + Web + Worker
 docker compose up -d postgres redis
+
+# 等待 healthy
+docker ps
 ```
 
-### 4. 初始化数据
+### 4. 数据库初始化
 
 ```bash
-# 建表迁移（幂等）
-node scripts/migrate.js
+# 迁移(自动应用 src/db/migrations/*.sql)
+DATABASE_URL=... node scripts/migrate.js
 
-# 创建管理员
-npx tsx src/db/create-admin.ts
+# Seed 17 features
+DATABASE_URL=... ./node_modules/.bin/tsx scripts/seed-features.ts
 
-# Seed 17 个功能配置
-npx tsx scripts/seed-features.ts
+# 创建 admin(可选,e2e 已自动创建)
+DATABASE_URL=... JWT_SECRET=... API_KEY_ENCRYPTION_KEY=... \
+  ./node_modules/.bin/tsx src/db/create-admin.ts
+# → admin@dunhuang.com / admin123(默认)
 ```
 
-### 5. 启动开发 / 生产
+### 5. 启动服务
 
 ```bash
-# 开发模式
-pnpm dev        # http://localhost:5000
+# 启动 Web + Worker(生产模式)
+docker compose up -d web worker
 
-# 生产模式（推荐 · 秒级启动）
-pnpm build
-NODE_ENV=production pnpm start
+# 或本地开发
+NODE_ENV=production ./node_modules/.bin/next start -p 5000 -H 0.0.0.0
+./node_modules/.bin/tsx worker/src/index.ts
 ```
 
-## 管理员账号
+访问 **http://localhost:5000** → admin@dunhuang.com / admin123 登录。
 
-```
-admin@dunhuang.com / admin123（算力 99999）
-```
+---
 
-## AI Provider 能力矩阵
+## 📦 17 功能(Phase 9.23 收口)
 
-| 能力 | Minimax API | 代码位置 | 状态 |
-|------|------------|---------|------|
-| LLM 对话 | `POST /v1/chat/completions` | `src/lib/minimax-call-service.ts` | ✅ 可用 |
-| 图片生成 | `POST /v1/image_generation` | 同上 | ✅ 可用 |
-| 视频生成 | `POST /v1/video_generation`（异步）| 同上 | ✅ 可用 |
-| 视频查询 | `GET /v1/query/video_generation` | 同上 | ✅ 可用 |
-| TTS 语音 | `POST /v1/text_to_speech` | 同上 | 🟡 待接入 |
-| 音乐生成 | `POST /v1/music_generation` | 同上 | 🟡 待接入 |
-| 声音克隆 | `POST /v1/voice_clone` | 同上 | 🟡 待接入 |
-| ComfyUI 本地 | 13 个工作流函数 | `src/lib/comfyui-service.ts` | 🟡 容器待部署 |
+### 16 设计类 → ComfyUIExecutor(主)+ Cloud fallback
 
-## 项目结构
+| ID | 功能 | cost | 分组 |
+|----|------|------|------|
+| text2img | 文案生图 | 10 | 灵感与创作 |
+| refine | 产品精修 | 15 | 灵感与创作 |
+| relief | 图转浮雕图 | 20 | 浮雕圆雕 |
+| image3d | 图转 3D 模型 | 30 | 浮雕圆雕 |
+| 2dto3d | 平面转雕塑 | 25 | 浮雕圆雕 |
+| blend | 多图融合 | 15 | 灵感与创作 |
+| oneclick | 一键设计 | 15 | 灵感与创作 |
+| multiview | 生成多视图 | 20 | 灵感与创作 |
+| sketch | 线稿/写实 | 15 | 灵感与创作 |
+| free | 自由创作区 | 15 | 灵感与创作 |
+| text2video | 文生视频 | 50 | 生成视频 |
+| img2video | 图生视频 | 40 | 生成视频 |
+| removebg | 移除背景 | 5 | 实用工具 |
+| upscale | 高清放大 | 5 | 实用工具 |
+| watermark | 去除水印 | 5 | 实用工具 |
+| tryon | 佩戴效果 | 25 | 实用工具 |
+
+### 1 AI 对话 → HermesAgentExecutor(主)+ Cloud fallback
+
+| ID | 功能 | cost | 分组 |
+|----|------|------|------|
+| dialogue | AI 对话 | 2 | 灵感与创作(置顶) |
+
+---
+
+## 🛡️ 架构红线(必读)
+
+- ✅ 用户请求**只能**包含 `featureId + 业务 params`
+- ❌ **禁止** 传 `workflow_id / model / lora / controlnet / provider / executor`
+- ✅ 所有执行统一经过 **GenerationService → Orchestrator → ExecutionPlan → Executor Port**
+- ❌ 严禁 Controller / API Route 直连 ComfyUI 或外部 API
+- ✅ `features.default_executor` 是路由**唯一真源**(DB)
+- ✅ Production 严禁 MockExecutor(ADR-010)
+- ✅ Workflow 修改 = 新版本(immutable,ADR-009)
+- ✅ ComfyUI Workflow 通过 `/admin/api-settings` → 工作流配置 上传
+
+---
+
+## 📂 项目结构(精简后)
 
 ```
 src/
-├── app/
-│   ├── api/            96 个 route.ts（admin/auth/ai/works 等）
-│   ├── admin/         后台管理（features/lora/models/system/tasks）
-│   ├── gallery/       作品展示
-│   ├── profile/       个人中心
-│   └── login/         登录
-├── components/         85 个组件（workspace/admin/ui）
-├── lib/
-│   ├── ai/            hexagon 架构（application/domain/orchestration/ports/registry）
-│   ├── ai-service/    17 个 AI 服务注册
-│   ├── minimax-*      Minimax 通用 Provider 框架（Phase 9.20）
-│   ├── orchestrator/  PolicyOrchestrator + 3 executor
-│   ├── api/           envelope（16 错误码）+ middleware（7 个）
-│   ├── comfyui-*      ComfyUI 调用
-│   ├── db/            schema + repositories + migrations
-│   └── sentry/        Sentry 配置 + PII 脱敏
-├── db/                7 个 SQL 迁移 + 8 schema + 11 repositories
-├── test/              25 个测试文件（单测 269+）
-└── storage/           统一数据库入口
+├─ app/                        # Next.js 路由(48 production routes)
+│  ├─ api/                     # RESTful API
+│  │  ├─ ai/generate-async/    # 主入口(异步任务)
+│  │  ├─ ai/generate/          # 同步入口(兼容)
+│  │  ├─ auth/                 # 认证
+│  │  ├─ chat/                 # AI 对话(Hermes + MiniMax fallback)
+│  │  ├─ features/             # 功能元数据
+│  │  ├─ tasks/                # 任务状态
+│  │  ├─ admin/model-registry/ # 模型登记(SHA256/状态/ControlNet)
+│  │  └─ admin/system/         # 系统健康(★ ComfyUI 状态聚合)
+│  ├─ admin/                   # 后台 UI 页面
+│  └─ workspace/               # 前台 17 功能面板
+├─ lib/
+│  ├─ ai/
+│  │  ├─ application/          # L2: GenerationService / PowerLedger / Telemetry
+│  │  ├─ orchestration/        # L3: PolicyOrchestrator + Routing/Retry/Fallback
+│  │  ├─ domain/               # L3: ExecutionPlan
+│  │  ├─ ports/                # L4: Executor Port 接口
+│  │  └─ adapters/             # L4: Executor Registry
+│  ├─ comfyui/                 # ComfyUI 集成(workflow-gate / dependency-analyzer / custom-node-check)
+│  ├─ orchestrator/executors/  # L4: ComfyUIExecutor / HermesAgentExecutor / MinimaxExecutor
+│  ├─ db/                      # L5: drizzle schema + repositories
+│  └─ feature-registry.ts      # feature_code → 组件 静态映射(唯一真源)
+├─ components/                 # UI 组件
+├─ worker/src/                 # BullMQ Worker
+└─ test/                       # 测试(63 个用例)
 ```
 
-## 测试
+---
+
+## ✅ Phase 里程碑
+
+| Phase | 内容 | Commit | GATE |
+|-------|------|--------|------|
+| Phase 0 | 基线 + 21 表 schema | 3f52623 | ✅ |
+| Phase 1-8 | 编排 / 数据层 / 算力 / 前端 / 可观测 | (远程 17 commit) | ✅ |
+| Phase 9.19 | AI Provider 标识变更 | 445b143 | ✅ |
+| Phase 9.20 | **MiniMax 通用 Provider 框架** | c32cd6f | ✅ |
+| Phase 9.21 | Sidebar 排序 + 视频解锁 | cf0aeac | ✅ |
+| **Phase 9.22** | **Hardening: 10 项加固 + Lint 0 警** | c617ae3 | **✅ PASS** |
+| **Phase 9.23** | **Workflow Asset Closure: 8 项发布门禁 + 模型反向引用** | ed9eeb7 | **✅ PASS** |
+| **Phase 9.24** | **Dead Code Cleanup: 393→295 文件, -9K 行** | 9ca79ac | **✅ PASS** |
+
+---
+
+## 🔒 关键约束(架构师必读)
+
+### Executor 收口
+
+```typescript
+type ExecutorType = 'comfyui' | 'hermes' | 'third-party' | 'mock';
+
+// capabilities:
+// - ComfyUIExecutor:    16 设计类(text2img/refine/relief/.../tryon)
+// - HermesAgentExecutor: {dialogue}
+// - MinimaxExecutor:    5 真支持(text2img/text2video/img2video/dialogue/ai_assistant)
+// - MockExecutor:       17 全集(ADR-010: production 禁)
+```
+
+### ExecutionPlan 冻结(ADR-009 + Phase 9.23 §9)
+
+任务创建时冻结,运行中不变(即使管理员切换 Active Workflow):
+
+```typescript
+interface ExecutionPlan {
+  taskId: string;
+  featureId: string;
+  executorId: ExecutorType;
+  fallbackChain: ExecutorType[];
+  workflowId?: string;
+  workflowVersion?: number;     // ← immutable
+  models: ModelSnapshot[];      // ← frozen
+  loras: AssetSnapshot[];       // ← frozen
+  controlnets: AssetSnapshot[]; // ← frozen
+  // ...
+}
+```
+
+### 8 项 Workflow 发布门禁
+
+1. JSON valid
+2. Required model dependencies resolved
+3. Required custom nodes resolved
+4. Input mapping valid
+5. Output mapping valid
+6. ComfyUI validation passed
+7. Dry Run passed
+8. 至少绑定一个 Feature
+
+任一 fail → workflow **不可 Active**。
+
+---
+
+## 🧪 测试与 CI
 
 ```bash
-# 单测（node 环境）
-npm run test:node
+# 单测(node 配置)
+NODE_ENV=development ./node_modules/.bin/vitest run --config vitest.node.config.ts
 
-# 组件测试（jsdom）
-pnpm test
+# 全部测试
+pnpm test:node
 
-# Minimax 真实 API 测试（需 MINIMAX_API_KEY）
-NODE_ENV=development vitest run --config vitest.node.config.ts src/test/minimax.test.ts
+# 类型检查
+./node_modules/.bin/tsc --noEmit
+
+# Lint(0 警告 0 错误是 CI 要求)
+pnpm lint
+
+# CI: GitHub Actions
+#   install → lint → typecheck → test → migration → build
+#   全部 fail-fast,无 continue-on-error
 ```
 
-## 部署
+**当前状态**:tsc 0 错 / lint 0 警 / **63/63 测试通过**
 
-### Docker Compose（4 容器）
+---
+
+## 📊 性能基线
+
+| 场景 | 并发 | req/s | P99 | 错误率 |
+|------|------|-------|-----|--------|
+| dev /health | 500 | 630.9 | 313ms | 0% |
+| 生产容器 /health | 10 | 341 | - | 0% |
+| 生产容器 /health | 500 | 323 | 611ms | 0% |
+
+---
+
+## 📚 关键文档
+
+| 文档 | 路径 |
+|------|------|
+| **Phase 9.22 Hardening 报告** | `docs/MIGRATION/PHASE-9-HARDENING-REPORT.md` |
+| **Phase 9.23 Workflow Asset Closure** | `docs/COMFYUI-WORKFLOW-ASSET-CLOSURE-REPORT.md` |
+| **Phase 9.24 Dead Code Cleanup** | `docs/PHASE-9-24-DEAD-CODE-CLEANUP.md` |
+| **架构蓝图 v2.0** | `ARCHITECTURE-BLUEPRINT-V2.md`(12 份规范合集) |
+| **执行计划** | `docs/MIGRATION/EXECUTION-PLAN.md` |
+| **Phase 0-9 报告** | `docs/MIGRATION/PHASE-*.md` |
+| **Sentry 接入** | `docs/MIGRATION/SENTRY-SETUP.md` |
+| **容量基线** | `docs/MIGRATION/PHASE-9-CAPACITY-BASELINE.md` |
+| **AI Provider 决策** | `docs/MIGRATION/PHASE-9-AI-PROVIDER-DECISION.md` |
+| **UI 设计参数** | `docs/UI-DESIGN-PARAMS.md` |
+| **部署说明** | `docs/MIGRATION/PHASE-9-DEPLOYMENT-NOTES.md` |
+
+---
+
+## 🔧 运维脚本
 
 ```bash
-docker compose up -d          # postgres + redis + web + worker
-docker compose ps             # 查看健康状态
-docker logs -f dunhuang-web   # 查看 web 日志
+# 数据库迁移
+DATABASE_URL=... node scripts/migrate.js
+
+# 备份
+./node_modules/.bin/tsx scripts/backup-db.ts
+
+# 清理陈旧任务(默认 dry-run)
+./node_modules/.bin/tsx scripts/cleanup-stale-tasks.ts
+./node_modules/.bin/tsx scripts/cleanup-stale-tasks.ts --apply --purge
+
+# 算力对账(默认 DRY-RUN)
+./node_modules/.bin/tsx scripts/reconcile-power.ts
+./node_modules/.bin/tsx scripts/reconcile-power.ts --apply
+
+# 性能压测
+./node_modules/.bin/tsx scripts/benchmark-prod.ts
+
+# Docker 健康自动恢复(WSL)
+bash scripts/docker-health-check.sh
 ```
 
-### 镜像构建
+---
 
-```bash
-docker build -f Dockerfile -t dunhuang-web:v1.0 .          # web 438MB
-docker build -f Dockerfile.worker -t dunhuang-worker:v1.0 . # worker 1.44GB
-```
+## 🚧 上线前必做(运维清单)
 
-### CI/CD
+- [ ] **上传 ComfyUI Workflow JSON**(16 个) → 触发发布门禁 → Active
+- [ ] **登记模型**(model_registry POST):基础模型 / LoRA / ControlNet(含 SHA256)
+- [ ] **worker 容器或 host 装 hermes CLI**(AI 对话功能)
+- [ ] 修改 admin 默认密码
+- [ ] Sentry 启用(`docs/MIGRATION/SENTRY-SETUP.md` 3 步)
+- [ ] 验证 17 功能 enabled(`GET /api/features`)
 
-GitHub Actions（`.github/workflows/ci.yml`）：install → typecheck → test → build
+---
 
-## 性能基线（dev mode）
+## 📝 License
 
-| 并发 | QPS | P99 |
-|------|-----|-----|
-| 10 | 106.7 | 139ms |
-| 50 | 387.6 | 140ms |
-| 100 | 493.8 | 212ms |
-| 500 | 630.9 | 313ms |
+Proprietary · 内部使用
 
-## 里程碑
+---
 
-- **Phase 0-8** ✅ 100%（架构规范 12 份全部兑现）
-- **Phase 9.17** node:20-alpine 基础镜像
-- **Phase 9.18** ESLint 402 警告清理 → **0 警告 0 错误**
-- **Phase 9.19** AI provider 标识变更（Minimax）
-- **Phase 9.20** Minimax 通用 Provider 框架（4 文件 + 测试 6/6）
-- **Phase 9.21** Sidebar 排序修复 + 视频功能解锁 + 助手改名
-
-## 文档
-
-- [迁移蓝图](docs/MIGRATION/ARCHITECTURE-BLUEPRINT-V2.md)
-- [执行计划](docs/MIGRATION/EXECUTION-PLAN.md)
-- [容量基线](docs/MIGRATION/PHASE-9-CAPACITY-BASELINE.md)
-- [Sentry 接入](docs/MIGRATION/SENTRY-SETUP.md)
-- [部署笔记](docs/MIGRATION/PHASE-9-DEPLOYMENT-NOTES.md)
-- [AI Provider 决策](docs/MIGRATION/PHASE-9-AI-PROVIDER-DECISION.md)
-
-## 许可
-
-内部项目（敦煌金 · Dharma Helper 工程中台）
+**主分支**:`main` @ `9ca79ac` · **最新 commit**:Phase 9.24 死代码清理 · **GATE 三连 PASS**
