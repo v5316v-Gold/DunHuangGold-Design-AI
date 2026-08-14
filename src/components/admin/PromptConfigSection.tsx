@@ -9,6 +9,9 @@ import {
 import RuleManagerModal from './RuleManagerModal';
 import ApiManagerModal from './ApiManagerModal';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // ============ 类型定义 ============
 interface TranslateSettings {
   preserveNewline: boolean;

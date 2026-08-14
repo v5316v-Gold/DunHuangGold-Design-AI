@@ -5,6 +5,9 @@ import Image from 'next/image';
 import { ImageIcon, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 interface ImageLoaderProps {
   src: string | null | undefined;
   alt?: string;

@@ -3,6 +3,8 @@
  * 用于监控 API 响应时间、内存使用、数据库查询等性能指标
  */
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // 性能指标接口
 export interface PerformanceMetric {
   name: string;

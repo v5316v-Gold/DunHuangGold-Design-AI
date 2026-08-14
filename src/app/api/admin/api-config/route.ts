@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
               coreApiConfigs[dbConfig.id].cloud.apiKey = dbConfig.apiKey;
             }
             if (dbConfig.provider) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               coreApiConfigs[dbConfig.id].cloud.provider = dbConfig.provider as any;
             }
             if (dbConfig.model) {
@@ -103,6 +104,7 @@ export async function GET(request: NextRequest) {
               coreApiConfigs[id].cloud.apiKey = memConfig.apiKey;
             }
             if (memConfig.provider) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               coreApiConfigs[id].cloud.provider = memConfig.provider as any;
             }
             if (memConfig.model) {

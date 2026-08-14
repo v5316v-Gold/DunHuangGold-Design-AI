@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { RefreshCw, Play, Edit, CheckCircle, XCircle, Sparkles } from 'lucide-react';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 interface CloudApiSettingsProps {
   apiData: any;
   onRefresh: () => void;

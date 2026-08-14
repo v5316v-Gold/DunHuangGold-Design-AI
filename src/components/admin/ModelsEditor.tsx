@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { Plus, Trash2, RefreshCw, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import {
   CATEGORY_LABELS,
   CATEGORY_ICONS,

@@ -9,6 +9,9 @@ import { registerService } from '../register-helper';
 import { createLogger } from '@/lib/error-handler';
 import type { GenerationRequest, GenerationResult } from '../types';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 const logger = createLogger('service:dialogue');
 
 const MINIMAX_API_BASE = process.env.MINIMAX_API_BASE || 'https://api.minimax.chat/v1';

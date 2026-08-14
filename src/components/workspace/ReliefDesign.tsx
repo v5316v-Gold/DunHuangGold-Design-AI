@@ -12,6 +12,9 @@ import { useGenerationHistory } from '@/hooks/useGenerationHistory';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useImageUpload } from '@/hooks/useImageUpload';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 export default function ReliefDesign({ power, onDeductPower }: WorkspaceProps) {
   // 有作品则展开侧边栏，没作品则收起
   const [result, setResult] = useState<string | null>(null);

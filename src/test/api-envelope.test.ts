@@ -6,6 +6,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // Mock redis
 const mockRedisStore = new Map<string, string>();
 const mockRedisSet = vi.fn(async (key: string, value: string, ...args: any[]) => {

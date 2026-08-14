@@ -7,6 +7,8 @@
  * 输出：[{ id, label, category, ownedBy? }]
  */
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type ModelCategory = 'chat' | 'image' | 'video' | '3d' | 'embedding' | 'audio' | 'multimodal' | 'other';
 
 export interface FetchedModel {

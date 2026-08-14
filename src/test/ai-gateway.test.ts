@@ -18,6 +18,9 @@ import { InMemoryLoraManager } from '@/lib/ai-gateway/adapters/lora-in-memory';
 import { StubWorkflowManager } from '@/lib/ai-gateway/adapters/workflow-manager';
 import type { IAIGenerationPort } from '@/lib/ai-gateway/port';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 describe('AI Gateway · Hexagonal 验证', () => {
   it('ComfyUIAdapter 是 IAIGenerationPort 实现', () => {
     const adapter: IAIGenerationPort = new ComfyUIAdapter();

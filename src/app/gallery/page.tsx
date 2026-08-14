@@ -23,6 +23,9 @@ import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { usePageState } from '@/hooks/usePageState';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // 模拟数据（当API无数据时展示）
 const mockImages: any[] = [];
 

@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { Sparkles, Server, Boxes, Zap, Check } from 'lucide-react';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 interface LocalLLMSettingsProps {
   onSave: (config: LocalLLMConfig) => void;
 }

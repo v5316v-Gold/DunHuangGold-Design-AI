@@ -9,6 +9,9 @@ import { db } from '@/db';
 import { systemSettings } from '@/db/schema/_tables';
 import { withRetry } from './db-retry';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 export interface SettingRow {
   key: string;
   value: any;

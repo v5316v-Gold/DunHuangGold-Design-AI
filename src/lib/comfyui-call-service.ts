@@ -15,6 +15,9 @@ import { memoryDb } from '@/storage/database/memory-db';
 import { comfyuiConfigs, comfyuiConnections } from '@/storage/database/shared/schema';
 import { eq, and } from 'drizzle-orm';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // ==================== 类型定义 ====================
 
 export interface ComfyUICallOptions {

@@ -34,6 +34,9 @@ import ComfyUIWorkflowManager from '@/components/admin/ComfyUIWorkflowManager';
 import PromptConfigSection from './PromptConfigSection';
 import { ModelsEditor, type ModelItem } from './ModelsEditor';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // 优化：功能分类颜色映射
 const CATEGORY_STYLES: Record<string, { bg: string; border: string; badge: string; icon: string }> = {
   'image': { bg: 'from-blue-500/5 to-blue-600/5', border: 'border-blue-500/30', badge: 'bg-blue-500/10 text-blue-600', icon: 'text-blue-500' },

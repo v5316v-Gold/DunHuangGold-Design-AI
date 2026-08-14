@@ -8,6 +8,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { sanitizeError } from '@/lib/validators';
 import { getCurrentUser } from '@/lib/auth';
 

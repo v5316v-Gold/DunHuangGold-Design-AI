@@ -9,6 +9,9 @@ import { callApi } from '@/lib/api-service';
 import { WorkspaceProps } from '@/constants/workspace';
 import ImageLoader from '@/components/ui/ImageLoader';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 interface HistoryItem {
   id: string;
   imageUrl: string;

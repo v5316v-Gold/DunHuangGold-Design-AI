@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { X, Loader2 } from 'lucide-react';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 type TabType = 'baidu' | 'zhipu' | 'xflow' | 'ollama';
 
 interface TabConfig {

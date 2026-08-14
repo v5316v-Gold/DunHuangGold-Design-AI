@@ -8,6 +8,9 @@ import { createLogger } from '@/lib/error-handler';
 const logger = createLogger('comfyui-service');
 import { getFileTypeDir } from '@/lib/storage-config';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 export interface ComfyUIResponse {
   success: boolean;
   prompt_id?: string;

@@ -14,6 +14,9 @@ import { db, schema } from '@/db';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 

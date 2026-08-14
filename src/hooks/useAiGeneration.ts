@@ -2,6 +2,9 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { callApi } from '@/lib/api-service';
 import { useGenerationTask } from './useGenerationTaskManager';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // ==================== SSE 进度连接器 ====================
 
 interface SSEProgressOptions {

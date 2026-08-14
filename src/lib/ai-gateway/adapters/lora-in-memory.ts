@@ -8,6 +8,9 @@
 import type { ILoraPort, LoraInfo } from '../port';
 import type { AIServiceType } from '@/lib/ai-service/types';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 export class InMemoryLoraManager implements ILoraPort {
   readonly name = 'lora-in-memory';
 

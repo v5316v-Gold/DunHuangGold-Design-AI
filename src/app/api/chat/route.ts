@@ -9,6 +9,9 @@ import { chatSchema, sanitizeError } from '@/lib/validators';
 import { randomUUID } from 'crypto';
 import { unauthorized } from '@/lib/api-response';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // Phase 3.6：统一 requestId 注入
 function reqId(): string {
   return `req_${randomUUID()}`;

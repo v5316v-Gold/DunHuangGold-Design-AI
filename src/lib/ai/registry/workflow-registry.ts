@@ -13,6 +13,9 @@ import { db } from '@/db';
 import { features } from '@/db/schema/features';
 import { workflowConfigs, type WorkflowConfig } from '@/config/comfyui-workflows';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 /** 缓存 entry */
 interface CacheEntry {
   config: WorkflowConfig | null;

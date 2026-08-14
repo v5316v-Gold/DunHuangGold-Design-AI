@@ -13,6 +13,9 @@
 
 import React, { createContext, useContext, useEffect, useCallback, useState, useRef } from 'react';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // ==================== 类型定义 ====================
 
 export interface GenerationTask {

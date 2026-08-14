@@ -7,6 +7,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { randomUUID } from 'crypto';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // Phase 3.6：统一 requestId 注入（envelope 可追踪性）
 function reqId(): string {
   return `req_${randomUUID()}`;

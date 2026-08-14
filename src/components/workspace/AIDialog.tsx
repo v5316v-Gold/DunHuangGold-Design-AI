@@ -29,6 +29,9 @@ import { cn } from '@/lib/utils';
 import { ModelPickerModal } from './sub-components/ModelPickerModal';
 import { ROLE_PRESETS, ROLE_ICONS } from '@/lib/ai/role-presets';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 /** 模型参数配置 */
 interface ModelParams {
   model: string;

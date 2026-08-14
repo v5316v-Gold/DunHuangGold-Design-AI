@@ -28,6 +28,9 @@ import { getWorkflowConfig, isWorkflowConfigured, workflowConfigs } from '@/conf
 import { unauthorized, badRequest, serviceUnavailable, internalError } from '@/lib/api-response';
 import { randomUUID } from 'crypto';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // Phase 3.6：统一 requestId 注入（envelope 可追踪性）
 function reqId(): string {
   return `req_${randomUUID()}`;

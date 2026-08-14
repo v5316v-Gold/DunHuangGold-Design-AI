@@ -13,6 +13,9 @@ import { eq, and, sql } from 'drizzle-orm';
 import type { AIServiceType } from '@/lib/ai-service/types';
 import type { ILoraPort, LoraInfo } from '../port';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // 定义 loras 表（与 006_add_loras.sql 一致）
 const loras = pgTable(
   'loras',

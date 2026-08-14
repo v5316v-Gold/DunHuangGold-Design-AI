@@ -6,6 +6,7 @@
  */
 
 'use client';
+import Image from 'next/image';
 
 import type { TaskPollState } from '@/hooks/useTaskPolling';
 
@@ -126,12 +127,13 @@ function ResultPreview({ output }: { output: Record<string, unknown> }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {urls.slice(0, 4).map((url, i) => (
-        <img
+        <Image
           key={i}
           src={url}
           alt={`生成结果 ${i + 1}`}
+          width={400}
+          height={400}
           className="w-full rounded-lg border border-[var(--border-color)] object-cover"
-          loading="lazy"
         />
       ))}
     </div>

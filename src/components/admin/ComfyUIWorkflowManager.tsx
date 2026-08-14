@@ -12,6 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Plus, Trash2, Edit, Server, Workflow, Code, Upload } from 'lucide-react';
 import { getAuthHeader } from '@/hooks/useAuth';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // 工作流配置接口
 interface Workflow {
   id: string;

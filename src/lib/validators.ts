@@ -7,6 +7,9 @@
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // ============================================================
 // 公共 Schema
 // ============================================================

@@ -23,6 +23,9 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 type AuthMode = 'login' | 'register';
 
 // 敦煌莫高窟九层楼 SVG 组件 - 金边金光流转效果

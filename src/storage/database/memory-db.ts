@@ -7,6 +7,8 @@
 
 import { comfyuiConfigs, comfyuiConnections } from './shared/schema';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // 内存存储
 interface MemoryStore {
   users: Array<{

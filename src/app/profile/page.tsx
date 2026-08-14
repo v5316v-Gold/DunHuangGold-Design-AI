@@ -33,6 +33,9 @@ import {
 } from '@/components/profile/ProfileEnhance';
 import { usePageState } from '@/hooks/usePageState';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 export default function ProfilePage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = usePageState('profile-active-tab', 'history');

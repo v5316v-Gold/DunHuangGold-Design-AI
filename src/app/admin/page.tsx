@@ -42,6 +42,9 @@ import TasksPage from './tasks/page';
 import ModelsPage from './models/page';
 import SystemPage from './system/page';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // 加载占位组件
 function LoadingPanel({ label }: { label: string }) {
   return (

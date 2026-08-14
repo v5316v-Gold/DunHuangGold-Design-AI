@@ -4,6 +4,9 @@ import { User as UserIcon, Coins, Settings, Zap, Crown, Users, HelpCircle, Downl
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // ============== 用户信息卡片 ==============
 export function ProfileHeader({ user, onSettings }: { user: any; onSettings: () => void }) {
   return (

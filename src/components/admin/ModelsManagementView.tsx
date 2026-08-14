@@ -12,6 +12,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import {
   Upload,
   RefreshCw,

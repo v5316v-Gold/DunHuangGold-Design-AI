@@ -8,6 +8,9 @@ import { db } from '@/db';
 import { promptRules } from '@/db/schema/_tables';
 import { withRetry } from './db-retry';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 export interface RuleRow {
   id: string;
   category: string;

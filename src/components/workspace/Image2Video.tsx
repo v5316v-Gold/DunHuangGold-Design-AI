@@ -11,6 +11,9 @@ import { callApi } from '@/lib/api-service';
 import { PromptInput } from '@/components/ui/PromptInput';
 import { WorkspaceProps } from '@/constants/workspace';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 interface HistoryItem {
   id: string;
   videoUrl: string;

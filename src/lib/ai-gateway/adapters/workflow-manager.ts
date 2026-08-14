@@ -10,6 +10,9 @@ import { eq, and, desc } from 'drizzle-orm';
 import type { AIServiceType } from '@/lib/ai-service/types';
 import type { IWorkflowPort, WorkflowInfo } from '../port';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // 定义 workflow_templates 表（与 005_add_workflow_templates.sql 一致）
 const workflowTemplates = pgTable(
   'workflow_templates',

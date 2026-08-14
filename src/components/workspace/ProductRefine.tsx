@@ -47,7 +47,12 @@ export default function ProductRefine({ power, onDeductPower }: WorkspaceProps) 
   const { history, addToHistory, clearHistory, removeFromHistory, removeWithUndo } = useGenerationHistory({ featureId: 'refine', limit: 20 });
 
   const toggleSelect = (id: string) => {
-    setSelectedHistory(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+    setSelectedHistory(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
   const selectAll = () => {
     if (selectedHistory.size === history.length) setSelectedHistory(new Set());

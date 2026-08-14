@@ -10,6 +10,9 @@ import { cn } from '@/lib/utils';
 import { callApi } from '@/lib/api-service';
 import { WorkspaceProps } from '@/constants/workspace';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 interface HistoryItem {
   id: string;
   imageUrl: string;

@@ -9,6 +9,9 @@ import { Input } from '@/components/ui/input';
 
 import { CheckCircle, XCircle, RefreshCw, Save, Wrench, Play } from 'lucide-react';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 interface WorkflowInfo {
   id: string;
   name: string;

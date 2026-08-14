@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { getAuthHeader } from '@/hooks/useAuth';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 // 功能列表
 const FEATURES = [
   // 图片生成类

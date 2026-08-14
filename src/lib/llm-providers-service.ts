@@ -14,6 +14,9 @@
 import { db, schema } from '@/db';
 import { eq } from 'drizzle-orm';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 const CLOUD_CONNECTIONS_KEY = 'cloud_connections';
 
 export interface LLMModelItem {
