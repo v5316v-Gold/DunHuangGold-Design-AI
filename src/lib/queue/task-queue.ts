@@ -14,7 +14,7 @@
 
 import { Queue, type Job, type JobsOptions } from 'bullmq';
 import { getBullConnection } from '../redis';
-import type { AIServiceType } from '@/lib/ai-service/types';
+export type AIServiceType = string; // Phase 9.24: 简化（原 ai-service/types.ts 已删除）
 import { createLogger } from '@/lib/error-handler';
 
 const logger = createLogger('task-queue');

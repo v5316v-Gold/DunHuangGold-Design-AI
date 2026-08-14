@@ -21,7 +21,8 @@ import {
   markFailed,
   markDeadLetter,
 } from '@/lib/queue/task-state';
-import { registry } from '@/lib/ai-service/services';
+// Phase 9.24: ai-service/services 已删除（死代码）；改走 PolicyOrchestrator 主链路
+import { policyOrchestrator } from '@/lib/ai/orchestration/policy-orchestrator';
 import { db } from '@/storage/database/db';
 import { works } from '@/storage/database/shared/schema';
 import { createLogger } from '@/lib/error-handler';
@@ -54,31 +55,36 @@ async function processJob(job: Job<JobData>): Promise<unknown> {
     // 1. 标记 processing
     await markProcessing(taskId, attempt);
 
-    // 2. 查 ServiceConfig
-    const config = registry.get(serviceType as any);
-    if (!config) {
-      throw new Error(`未知服务类型: ${serviceType}`);
-    }
-
-    // 3. 进度上报：10%
-    await updateProgress(taskId, 10);
-
-    // 4. 执行 AI 生成
-    const result = await config.execute({
-      service: serviceType as any,
-      ...params,
+    // 2. 通过 PolicyOrchestrator 执行（主链路 — features.default_executor 路由）
+    //    Phase 9.24 改写：原 ai-service registry 已删除，policyOrchestrator 接收
+    //    featureId(userId=... & inputs=...) 的统一调用契约。
+    const execResult = await policyOrchestrator.execute({
+      featureId: serviceType,
+      userId,
+      inputs: params,
+      traceId: taskId,
     });
+    const result = {
+      success: execResult.success,
+      artifacts: execResult.artifacts?.map(a => ({
+        url: a.url,
+        mime: a.mime,
+        metadata: a.metadata,
+      })),
+      error: execResult.error,
+    };
 
     // 5. 进度上报：80%
     await updateProgress(taskId, 80);
 
     if (!result.success) {
-      throw new Error(result.error || 'AI 生成失败');
+      const msg = result.error?.message || (typeof result.error === 'string' ? result.error : 'AI 生成失败');
+      throw new Error(msg);
     }
 
     // 6. 保存作品记录（如果有结果数据）
-    if (db && result.data) {
-      const imageUrls = Array.isArray(result.data) ? result.data : [result.data];
+    const imageUrls = result.artifacts?.map(a => a.url).filter(Boolean) ?? [];
+    if (db && imageUrls.length > 0) {
       try {
         await db.insert(works).values({
           userId,
@@ -87,7 +93,7 @@ async function processJob(job: Job<JobData>): Promise<unknown> {
           prompt: (params.prompt as string) || null,
           outputImageUrl: imageUrls[0] || null,
           params,
-          powerCost: result.powerCost || 0,
+          powerCost: 0, // Phase 9.24: 由 PowerLedger 统一管理
           status: 'completed',
           isPublic: false,
         });
@@ -98,16 +104,16 @@ async function processJob(job: Job<JobData>): Promise<unknown> {
 
     // 7. 标记完成
     await markCompleted(taskId, {
-      images: result.data,
-      provider: result.provider,
-      workflow: result.workflow,
-      powerCost: result.powerCost,
+      images: imageUrls,
+      provider: '',
+      workflow: '',
+      powerCost: 0,
     });
 
     return {
       success: true,
       taskId,
-      data: result.data,
+      data: imageUrls,
     };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);

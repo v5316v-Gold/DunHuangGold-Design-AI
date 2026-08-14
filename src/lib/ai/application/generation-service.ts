@@ -43,7 +43,8 @@ import {
   createMemoryTask,
   updateMemoryTask,
 } from '@/lib/queue/memory-task-store';
-import type { AIServiceType } from '@/lib/ai-service/types';
+// Phase 9.24: AIServiceType 已简化（删 lib/ai-service/types.ts，统一为 string 联合）
+type AIServiceType = string;
 
 const logger = createLogger('generation-service');
 
