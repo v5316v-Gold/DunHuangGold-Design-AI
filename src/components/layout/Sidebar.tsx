@@ -183,22 +183,21 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
 
         const fetchFeaturesStatus = async () => {
           try {
-            const response = await fetch('/api/admin/features-status', { credentials: 'include' });
+            // Phase 9.25 · 修复: /api/admin/features-status 已在 Phase 9.24 清理
+            // 改用公共 /api/features(已含 enabled 字段)
+            const response = await fetch('/api/features', { credentials: 'include' });
             const result = await response.json();
 
             if (result.success) {
               const status: Record<string, { enabled: boolean; reason?: string }> = {};
-              Object.keys(result.data).forEach(featureId => {
-                status[featureId] = {
-                  enabled: result.data[featureId].enabled,
-                  reason: result.data[featureId].reason,
+              const list = result.data?.features ?? [];
+              list.forEach((f: { id: string; enabled: boolean; reason?: string }) => {
+                status[f.id] = {
+                  enabled: f.enabled,
+                  reason: f.reason,
                 };
               });
               setFeaturesStatus(status);
-            } else if (result.error === '未登录') {
-              // 未登录状态下静默忽略（正常情况）
-            } else {
-              console.warn('获取功能状态失败:', result.error);
             }
           } catch (error) {
             console.error('获取功能状态时出错:', error);

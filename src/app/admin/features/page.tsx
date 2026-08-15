@@ -52,8 +52,9 @@ const CATEGORY_LABELS: Record<FeatureDefinition['category'], string> = {
 };
 
 interface FeatureStatus {
+  featureId?: string;
   enabled: boolean;
-  apiId: string;
+  apiId?: string;
   reason?: string;
 }
 
@@ -87,33 +88,30 @@ export default function FeaturesManagementPage() {
       const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
       // 并行加载
+      // Phase 9.25 · 修复: /api/admin/features-status 已在 Phase 9.24 清理
+      // 改用公共 /api/features(已含 enabled 字段)
       const [statusRes, costRes] = await Promise.all([
-        fetch('/api/admin/features-status', { credentials: 'include', headers })
-        
+        fetch('/api/features', { credentials: 'include', headers })
           .then((r) => r.json())
           .catch(() => null),
         fetch('/api/admin/feature-costs', { credentials: 'include', headers })
-        
           .then((r) => r.json())
           .catch(() => null),
       ]);
 
       // 解析 status
       if (statusRes?.success) {
-        // /api/admin/features-status 返回的格式可能是 { features: [...] } 或直接是数组
+        // /api/features 返回 { features: [{id, enabled, ...}] }
         const data = statusRes.data;
-        let statusMap: Record<string, FeatureStatus> = {};
-        if (Array.isArray(data)) {
-          data.forEach((s: any) => {
-            statusMap[s.featureId || s.id] = s;
-          });
-        } else if (data?.features && Array.isArray(data.features)) {
-          data.features.forEach((s: any) => {
-            statusMap[s.featureId || s.id] = s;
-          });
-        } else if (typeof data === 'object' && data !== null) {
-          statusMap = data as Record<string, FeatureStatus>;
-        }
+        const statusMap: Record<string, FeatureStatus> = {};
+        const list = data?.features ?? (Array.isArray(data) ? data : []);
+        list.forEach((s: any) => {
+          statusMap[s.id || s.featureId] = {
+            featureId: s.id || s.featureId,
+            enabled: s.enabled,
+            reason: s.reason,
+          };
+        });
         setStatuses(statusMap);
       }
 
