@@ -458,7 +458,35 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 w-full">
-          {/* Logo 区域 — 已移除(Phase 9.25 用户需求) */}
+          {/* Logo 区域 — 使用 /logo.png 真实图片 */}
+          <div className="flex items-center gap-4 mb-10 animate-fade-in">
+            <div
+              className="relative w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-br from-[var(--gold)] via-[var(--gold-bright)] to-[var(--gold-hover)] flex items-center justify-center"
+              style={{
+                boxShadow:
+                  '0 8px 40px rgba(212,175,55,0.4), inset 0 2px 10px rgba(255,255,255,0.3)',
+              }}
+            >
+              <Image
+                src="/logo.png"
+                alt="敦煌金AI设计平台"
+                width={56}
+                height={56}
+                className="w-full h-full object-cover"
+                unoptimized
+              />
+              {/* 光晕 */}
+              <div className="absolute inset-0 rounded-2xl bg-[var(--gold)] blur-xl opacity-30 -z-10" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-[var(--text-primary)] tracking-wide">
+                敦煌金AI设计平台
+              </h1>
+              <p className="text-sm text-[var(--text-muted)] mt-1 tracking-widest">
+                DUNHUANG GOLD AI DESIGN
+              </p>
+            </div>
+          </div>
 
           {/* 标题 */}
           <div className="mb-8">
