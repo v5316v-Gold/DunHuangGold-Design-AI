@@ -40,7 +40,9 @@ export type TaskStatusKind =
 export const ALLOWED_TRANSITIONS: Record<TaskStatusKind, TaskStatusKind[]> = {
   queued: ['pending', 'cancelled'],
   pending: ['processing', 'cancelled', 'failed'],
-  processing: ['completed', 'failed', 'cancelled'],
+  // Phase 9.26 · processing→processing 幂等（worker 重启后遗留 processing 任务可重入）
+  // 否则：任务状态卡 processing → worker 反复处理被拒 → BullMQ stalled 死循环 → CPU 100%
+  processing: ['processing', 'completed', 'failed', 'cancelled'],
   completed: [],
   failed: ['processing', 'pending', 'dead_letter', 'cancelled'],
   dead_letter: ['pending', 'cancelled'],  // 允许人工重试

@@ -2,6 +2,9 @@ import { Worker } from 'bullmq';
 // Phase 4：worker 走新 PolicyOrchestrator（策略驱动：routing/retry/fallback + ExecutionPlan）
 // 旧 orchestrator（src/lib/orchestrator/feature-orchestrator）已冻结 deprecated
 import { policyOrchestrator } from '@/lib/ai/orchestration/policy-orchestrator';
+// Phase 9.26 · 必须注册 executors（否则 PolicyOrchestrator.executors 空 Map →
+// decideFallback 永不推进 → 死循环 CPU 100%）
+import '@/lib/ai/adapters/executor-registry';
 import { getBullConnection } from '@/lib/redis';
 import {
   markProcessing,
@@ -100,12 +103,14 @@ const worker = new Worker(
     }
 
     // 2. 执行（Phase 4：新 PolicyOrchestrator，策略驱动）
+    logger.info(`[worker] 执行前: ${taskId} (${featureId}) params=${JSON.stringify(params).slice(0, 100)}`);
     const result = await policyOrchestrator.execute({
       featureId,
       userId,
       inputs: params,
       traceId,
     });
+    logger.info(`[worker] 执行返回: ${taskId} success=${result.success} exec=${result.executorUsed} cost=${result.cost} latency=${result.latencyMs}ms`);
 
     // 3. 更新任务状态
     if (result.success) {

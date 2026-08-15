@@ -138,16 +138,26 @@ export class PolicyOrchestrator {
       const started = Date.now();
       let result: ExecutorResult;
       try {
-        // 兼容旧 executor Port（_feature 字段）；新 executor 可读 plan
-        result = await executor.execute({
-          featureId: req.featureId,
-          userId: req.userId,
-          inputs: req.inputs,
-          traceId,
-          requestId,
-          plan,
-          _feature: feature as unknown,
-        } as never);
+        // Phase 9.26 · 执行超时防护（防止外部 API 无限挂起占住 worker）
+        // ComfyUI 不可用 / Minimax 网络抖动时快速失败 → fallback 或 dead_letter
+        const EXECUTOR_TIMEOUT_MS = 120_000; // 120s 上限
+        result = await Promise.race([
+          executor.execute({
+            featureId: req.featureId,
+            userId: req.userId,
+            inputs: req.inputs,
+            traceId,
+            requestId,
+            plan,
+            _feature: feature as unknown,
+          } as never),
+          new Promise<ExecutorResult>((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`执行器超时(${EXECUTOR_TIMEOUT_MS / 1000}s): ${currentExecutor}`)),
+              EXECUTOR_TIMEOUT_MS
+            )
+          ),
+        ]);
       } catch (error) {
         result = {
           success: false,
@@ -198,10 +208,9 @@ export class PolicyOrchestrator {
       // 兜底链下一个执行器
       const fb = decideFallback(plan, trace);
       if (fb.exhausted) {
-        if (retry.verdict === 'retry') {
-          attempt += 1;
-          continue; // 同执行器重试（重试次数内）
-        }
+        // Phase 9.26 · 修复死循环：fallback 链耗尽时不再原地重试同一 executor。
+        // 原地 continue 会无限重试（executor 永远失败 → CPU 100%）。
+        // 交给外层：BullMQ 重试 / 死信处理。
         break;
       }
       currentExecutor = fb.nextExecutor;

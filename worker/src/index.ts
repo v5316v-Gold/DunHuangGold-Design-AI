@@ -220,8 +220,6 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // 启动
 // ============================================================
 
-// 注册所有 AI 服务（自动 side-effect）
-import '@/lib/ai-service/services';
-
+// Phase 9.26 · 移除已删的 ai-service/services 引用（Phase 9.24 清理）
 logger.info('启动 Worker 进程...');
 _worker = startWorker();
