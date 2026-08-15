@@ -33,7 +33,13 @@ export async function POST(request: NextRequest) {
         : typeof body.featureId === 'string'
           ? body.featureId
           : '';
-    const { service: _service, featureId: _featureId, ...params } = body;
+    // Phase 9.26 · 兼容嵌套 params
+    const nestedParams =
+      body.params && typeof body.params === 'object'
+        ? (body.params as Record<string, unknown>)
+        : {};
+    const { service: _service, featureId: _featureId, params: _params, ...flatParams } = body;
+    const params = Object.keys(nestedParams).length > 0 ? nestedParams : flatParams;
 
     if (!featureId) {
       return fail('INVALID_INPUT', '缺少 service 参数', { requestId });

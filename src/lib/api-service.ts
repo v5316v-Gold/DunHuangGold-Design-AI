@@ -71,32 +71,32 @@ const featureIdAliases: Record<string, string> = {
 
 // 功能ID到API路径的映射
 const featureApiPathMap: Record<string, string> = {
-  // LLM对话类
-  'dialogue': '/api/chat',
+  // LLM 对话（独立 SSE 流式）
+  dialogue: '/api/chat',
   
   // 图片生成类
-  'text2img': '/api/generate-image',
-  'refine': '/api/product-refine',
-  'blend': '/api/multi-image',
-  'oneclick': '/api/one-click-design',
-  'multiview': '/api/multi-view',
-  'sketch': '/api/sketch-realistic',
-  'free': '/api/free-creation',
+  text2img: '/api/ai/generate-async',
+  refine: '/api/ai/generate-async',
+  blend: '/api/ai/generate-async',
+  oneclick: '/api/ai/generate-async',
+  multiview: '/api/ai/generate-async',
+  sketch: '/api/ai/generate-async',
+  free: '/api/ai/generate-async',
   
   // 图片编辑类
-  'relief': '/api/relief',
-  'image3d': '/api/image-3d',
-  '2dto3d': '/api/stereo',
-  'removebg': '/api/remove-background',
-  'upscale': '/api/upscale',
-  'watermark': '/api/remove-watermark',
+  relief: '/api/ai/generate-async',
+  image3d: '/api/ai/generate-async',
+  '2dto3d': '/api/ai/generate-async',
+  removebg: '/api/ai/generate-async',
+  upscale: '/api/ai/generate-async',
+  watermark: '/api/ai/generate-async',
   
   // 视频生成类
-  'text2video': '/api/video',
-  'img2video': '/api/video',
+  text2video: '/api/ai/generate-async',
+  img2video: '/api/ai/generate-async',
 
   // 佩戴效果 (2026-08-03 闭环:独立 API 路由,避免与 image-generate 互窜)
-  'tryon': '/api/tryon',
+  tryon: '/api/ai/generate-async',
 };
 
 /**
@@ -206,6 +206,14 @@ export async function callApi<T = unknown>(
     const isLongTimeoutFeature = ['relief', 'image-3d', 'image3d', 'stereo', '2dto3d', 'relief-design'].includes(resolvedFeatureId);
     const timeout = options.timeout ?? (isLongTimeoutFeature ? 300000 : 60000);
 
+    // Phase 9.26 · body 适配：
+    //   - AI 对话(/api/chat) 期望 { messages, ...params, _feature, _source }
+    //   - 16 设计类(/api/ai/generate-async) 期望 { featureId, params }
+    const isDialogue = resolvedFeatureId === 'dialogue' || featureId === 'dialogue' || featureId === 'chat' || featureId === 'llm-chat';
+    const requestBody = isDialogue
+      ? { ...options.params, _feature: featureId, _source: source }
+      : { featureId: resolvedFeatureId, params: options.params ?? {} };
+
     const response = await fetchWithRetry(apiPath, {
       method: 'POST',
       headers: {
@@ -213,11 +221,7 @@ export async function callApi<T = unknown>(
         ...getAuthHeader(),
         ...options.headers,
       },
-      body: JSON.stringify({
-        ...options.params,
-        _feature: featureId,
-        _source: source,
-      }),
+      body: JSON.stringify(requestBody),
     }, 3, 500, timeout);
 
     if (!response.ok) {

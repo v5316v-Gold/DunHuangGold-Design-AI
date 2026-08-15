@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   if (!rl.success) return rateLimitResponse(rl);
 
   try {
-    // 3. 解析参数（service / featureId 兼容）
+    // 3. 解析参数（service / featureId 兼容 + Phase 9.26 嵌套 params）
     const body = (await request.json()) as Record<string, unknown>;
     const featureId =
       typeof body.service === 'string'
@@ -40,7 +40,15 @@ export async function POST(request: NextRequest) {
         : typeof body.featureId === 'string'
           ? body.featureId
           : '';
-    const { service: _service, featureId: _featureId, ...params } = body;
+    // 兼容两种 body：
+    //   旧扁平: { featureId, prompt, width, ... }
+    //   新嵌套: { featureId, params: { prompt, width, ... } }
+    const nestedParams =
+      body.params && typeof body.params === 'object'
+        ? (body.params as Record<string, unknown>)
+        : {};
+    const { service: _service, featureId: _featureId, params: _params, ...flatParams } = body;
+    const params = Object.keys(nestedParams).length > 0 ? nestedParams : flatParams;
 
     // 4. 委托 GenerationService.create（校验/算力预扣/落库/入队/审计）
     const result = await generationService.create(

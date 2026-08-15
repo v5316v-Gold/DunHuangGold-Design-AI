@@ -125,11 +125,13 @@ function deriveIdempotencyKey(
 }
 
 function isKnownServiceType(value: string): value is AIServiceType {
+  // Phase 9.26 · 使用新 id(对齐 DB features 表)
+  // 兼容老 id(stereo → 2dto3d, tryon 已在列表)
   const known: AIServiceType[] = [
-    'text2img', 'refine', 'relief', 'image3d', 'stereo',
+    'text2img', 'refine', 'relief', 'image3d', '2dto3d',
     'removebg', 'upscale', 'watermark', 'sketch', 'blend',
     'oneclick', 'multiview', 'free', 'text2video', 'img2video',
-    'dialogue', 'ai-assistant',
+    'tryon', 'dialogue', 'ai-assistant',
   ];
   return known.includes(value as AIServiceType);
 }

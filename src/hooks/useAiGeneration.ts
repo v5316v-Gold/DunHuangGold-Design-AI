@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { callApi } from '@/lib/api-service';
+import { getAuthHeader } from '@/lib/auth-client';
 import { useGenerationTask } from './useGenerationTaskManager';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -247,9 +248,62 @@ export function useAiGeneration({
           progressIntervalRef.current = null;
         }
 
-        // 检测异步模式响应（ComfyUI 返回 prompt_id + sse_url）
-        // async 模式时 prompt_id/sse_url 在 response.data 中
+        // Phase 9.26 · async 任务模式 (/api/ai/generate-async 返回 taskId + statusUrl)
+        //        轮询 /api/tasks/[id] 直至 completed / failed
         const respData = (response as { data?: Record<string, unknown> }).data;
+        if (response.success && respData?.taskId) {
+          const taskId = String(respData.taskId);
+          const statusUrl = String(respData.statusUrl || `/api/tasks/${taskId}`);
+          const POLL_INTERVAL = 2000;
+          const MAX_POLLS = 300; // 10 分钟上限
+
+          if (taskIdRef.current) {
+            updateTask(taskIdRef.current, { taskId });
+          }
+
+          for (let i = 0; i < MAX_POLLS; i++) {
+            if (abortControllerRef.current?.signal.aborted) {
+              throw new Error('请求已取消');
+            }
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+            try {
+              const pollRes = await fetch(statusUrl, {
+                headers: { ...getAuthHeader() },
+                signal: abortControllerRef.current!.signal,
+              });
+              if (!pollRes.ok) {
+                if (pollRes.status >= 500) continue; // 5xx 重试
+                throw new Error(`轮询任务失败: HTTP ${pollRes.status}`);
+              }
+              const pollJson = await pollRes.json();
+              const taskData = pollJson?.data ?? pollJson;
+              const status = String(taskData?.status ?? '');
+              const progress = Number(taskData?.progress ?? 0);
+              if (Number.isFinite(progress) && progress > 0) {
+                setProgress(progress);
+                if (taskIdRef.current) updateTask(taskIdRef.current, { progress });
+              }
+              if (status === 'completed') {
+                setProgress(100);
+                onDeductPower(cost, deductReason);
+                if (taskIdRef.current) completeTask(taskIdRef.current, taskData);
+                onSuccess?.(taskData);
+                return taskData;
+              }
+              if (status === 'failed' || status === 'dead_letter') {
+                const errMsg = String(taskData?.error ?? '任务失败');
+                throw new Error(errMsg);
+              }
+              // pending / processing 继续轮询
+            } catch (pollErr) {
+              if ((pollErr as Error).name === 'AbortError') throw pollErr;
+              if (i > 5) throw pollErr; // 前 5 次容错
+            }
+          }
+          throw new Error('任务超时(10分钟未完成)');
+        }
+
+        // ComfyUI 老异步模式（prompt_id + sse_url 兼容）
         if (response.success && respData?.prompt_id && respData?.sse_url) {
           const sse_url = respData.sse_url as string;
 
