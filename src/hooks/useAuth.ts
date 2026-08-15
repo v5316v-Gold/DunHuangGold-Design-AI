@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 
 // localStorage 仅缓存用户资料（非敏感信息），token 绝不下放
 const USER_KEY = 'dunhuang_user';
@@ -51,10 +52,10 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     (async () => {
       try {
-        const response = await fetch('/api/auth/me', { credentials: 'include' });
-        const data = await response.json();
-        if (data.success) {
-          setUser(data.data);
+        const data = await apiClient.get<{ user: User }>(API_ROUTES.me, { withCredentials: true, auth: false });
+        if (data.success && data.data) {
+          const d = data.data as { user?: User } & User;
+          setUser(d.user ?? d);
           // 用户资料写入 localStorage 便于快速渲染（不含 token）
           localStorage.setItem(USER_KEY, JSON.stringify(data.data));
         } else {
@@ -73,19 +74,13 @@ export function useAuth(): UseAuthReturn {
   // 登录
   const login = useCallback(async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // 必须携带/接收 cookie
-        body: JSON.stringify({ email, password }),
-      });
+      const data = await apiClient.post<{ user: User }>(API_ROUTES.login, { email, password }, { withCredentials: true, auth: false });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setUser(data.data.user);
+      if (data.success && data.data) {
+        const d = data.data as { user?: User } & User;
+        setUser(d.user ?? d);
         // token 由 HttpOnly cookie 管理，前端不持有
-        localStorage.setItem(USER_KEY, JSON.stringify(data.data.user));
+        localStorage.setItem(USER_KEY, JSON.stringify(d.user ?? d));
         return { success: true };
       } else {
         return { success: false, error: data.error || '登录失败' };
@@ -99,18 +94,12 @@ export function useAuth(): UseAuthReturn {
   // 注册
   const register = useCallback(async (email: string, password: string, nickname?: string) => {
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password, nickname }),
-      });
+      const data = await apiClient.post<{ user: User }>(API_ROUTES.register, { email, password, nickname }, { withCredentials: true, auth: false });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setUser(data.data.user);
-        localStorage.setItem(USER_KEY, JSON.stringify(data.data.user));
+      if (data.success && data.data) {
+        const d = data.data as { user?: User } & User;
+        setUser(d.user ?? d);
+        localStorage.setItem(USER_KEY, JSON.stringify(d.user ?? d));
         return { success: true };
       } else {
         return { success: false, error: data.error || '注册失败' };
@@ -128,7 +117,7 @@ export function useAuth(): UseAuthReturn {
     localStorage.removeItem(USER_KEY);
     // 通知后端清除 HttpOnly cookie
     try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      await apiClient.post(API_ROUTES.logout, {}, { withCredentials: true, auth: false });
     } catch {
       // 忽略登出请求失败（本地状态已清）
     }
@@ -137,10 +126,10 @@ export function useAuth(): UseAuthReturn {
   // 刷新用户信息
   const refreshUser = useCallback(async () => {
     try {
-      const response = await fetch('/api/auth/me', { credentials: 'include' });
-      const data = await response.json();
-      if (data.success) {
-        setUser(data.data);
+      const data = await apiClient.get<{ user: User }>(API_ROUTES.me, { withCredentials: true, auth: false });
+      if (data.success && data.data) {
+        const d = data.data as { user?: User } & User;
+        setUser(d.user ?? d);
         localStorage.setItem(USER_KEY, JSON.stringify(data.data));
       } else {
         // Token 无效，登出

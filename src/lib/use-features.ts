@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 
 /** 公开功能元数据（来自 /api/features，脱敏字段） */
 export interface PublicFeature {
@@ -19,9 +20,8 @@ export function useFeatures() {
   const [features, setFeatures] = useState<PublicFeature[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    fetch('/api/features')
-      .then((r) => r.json())
-      .then((d) => setFeatures(d.data?.features || []))
+    apiClient.get<{ features: Array<{ id: string; name: string }> }>(API_ROUTES.features)
+      .then((d) => setFeatures(d.data?.features ?? []))
       .catch(() => setFeatures([]))
       .finally(() => setLoading(false));
   }, []);
@@ -43,21 +43,22 @@ export function useCurrentUser(): CurrentUser | null {
     let cancelled = false;
     // 1) 优先从 cookie 快速读出（cookie 由 middleware 写入，httpOnly 但 role 已在 JWT 中）
     // 2) 调 /api/auth/me 取完整信息（含 nickname/avatar/power）
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
+    apiClient.get<Record<string, unknown>>(API_ROUTES.me, { withCredentials: true, auth: false })
+      .then((d) => (d.success ? d.data : null))
       .then((d) => {
         if (cancelled) return;
         // 兼容两种响应结构：
         //   - 标准 envelope: { success, data: { id, email, role, ... } }
         //   - 旧格式:       { data: { user: ... } } 或 { user: ... }
-        const u = d?.data?.user ?? d?.user ?? d?.data ?? null;
-        if (u && (u.id || u.email)) {
+        const d2 = d?.data as Record<string, unknown> | undefined;
+        const u = (d2?.user as Record<string, unknown> | undefined) ?? (d as unknown as Record<string, unknown>) ?? d2 ?? null;
+        if (u && (u.id as string | undefined) && (u.email as string | undefined)) {
           setUser({
-            id: u.id,
-            email: u.email,
-            role: u.role,
-            nickname: u.nickname,
-            avatar: u.avatar,
+            id: String(u.id),
+            email: String(u.email),
+            role: String(u.role ?? 'user'),
+            nickname: u.nickname ? String(u.nickname) : undefined,
+            avatar: u.avatar ? String(u.avatar) : undefined,
           });
         } else {
           setUser(null);

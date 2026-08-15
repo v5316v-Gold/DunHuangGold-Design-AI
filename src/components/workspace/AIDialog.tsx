@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { getTaskCost } from '@/lib/power';
 import { getAuthHeader } from '@/lib/auth-client';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { ModelPickerModal } from './sub-components/ModelPickerModal';
 import { ROLE_PRESETS, ROLE_ICONS } from '@/lib/ai/role-presets';
@@ -102,11 +103,11 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
 
     // 启动时从 /api/models 加载默认模型（管理员在后台改默认后立即生效）
     useEffect(() => {
-      fetch('/api/models')
-        .then((r) => r.json())
+      apiClient.get<{ default?: string }>(API_ROUTES.models)
         .then((data) => {
-          if (data?.default) {
-            setParams((prev) => ({ ...prev, model: data.default }));
+          const model = data.data?.default;
+          if (model) {
+            setParams((prev) => ({ ...prev, model }));
           }
         })
         .catch(() => {});

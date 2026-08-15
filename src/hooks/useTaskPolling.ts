@@ -1,3 +1,4 @@
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 /**
  * Phase 7.2 · useTaskPolling — 统一任务轮询 Hook
  *
@@ -67,22 +68,17 @@ export function useTaskPolling(opts: { intervalMs?: number } = {}) {
       setState((s) => ({ ...s, status: 'submitting', message: '正在提交任务...' }));
 
       try {
-        const res = await fetch('/api/ai/generate-async', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const json = await res.json().catch(() => null);
+        const json = await apiClient.post<{ taskId?: string }>(API_ROUTES.generateAsync, body);
 
-        if (!res.ok || !json?.success) {
-          const code = json?.error?.code ?? json?.code;
-          const message = json?.error?.message ?? json?.error ?? '任务提交失败';
+        if (!json.success) {
+          const code = json.code;
+          const message = json.error ?? '任务提交失败';
           setState((s) => ({ ...s, status: 'error', error: message }));
           return { ok: false, error: message };
         }
 
-        const taskId = json.data?.taskId ?? json.taskId;
-        setState((s) => ({ ...s, status: 'pending', taskId, message: '任务已提交' }));
+        const taskId = json.data?.taskId;
+        setState((s) => ({ ...s, status: 'pending', taskId: taskId ?? null, message: '任务已提交' }));
         return { ok: true, taskId };
       } catch (e) {
         const message = e instanceof Error ? e.message : '网络错误';

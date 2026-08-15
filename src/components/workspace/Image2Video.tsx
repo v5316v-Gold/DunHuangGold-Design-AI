@@ -3,6 +3,7 @@
 import { useState, useCallback, type ComponentProps } from 'react';
 import Image from 'next/image';
 import { usePageState } from '@/hooks/usePageState';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { Upload, Download, RefreshCw, Video, Play, Pause, X, Clock, Info, Image as ImageIcon, Film } from 'lucide-react';
 import { getTaskCost } from '@/lib/power';
@@ -233,12 +234,7 @@ export default function Image2Video({ power, onDeductPower }: WorkspaceProps) {
   const handleOptimizePrompt = async () => {
     if (!prompt.trim()) return;
     try {
-      const res = await fetch('/api/prompt-optimize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim(), ruleId: 'expand-general' }),
-      });
-      const data = await res.json();
+      const data = await apiClient.post<{ optimized?: string; text?: string }>(API_ROUTES.promptOptimize, { prompt: prompt.trim(), ruleId: 'expand-general' });
       if (data.success && data.data?.optimized) {
         setPrompt(data.data.optimized);
       } else {
@@ -255,12 +251,7 @@ export default function Image2Video({ power, onDeductPower }: WorkspaceProps) {
     if (!prompt.trim()) return;
     const translateDir = dir || 'zh-en';
     try {
-      const res = await fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: prompt.trim(), dir: translateDir }),
-      });
-      const data = await res.json();
+      const data = await apiClient.post<{ translated?: string; text?: string }>(API_ROUTES.translate, { text: prompt.trim(), dir: translateDir });
       if (data.success && data.data?.translated) {
         setPrompt(data.data.translated);
       } else {

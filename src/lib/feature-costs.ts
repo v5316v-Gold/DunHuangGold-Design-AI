@@ -1,3 +1,4 @@
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 /**
  * 功能算力配置 - 支持管理员配置动态值
  */
@@ -78,18 +79,13 @@ export function getAllFeatureCosts(): Record<string, number> {
  */
 export async function preloadFeatureCosts(): Promise<void> {
   try {
-    const res = await fetch('/api/feature-costs', {
-      // 无需鉴权 header
-    });
+    const data = await apiClient.get<{ costs: Record<string, number>; source?: string }>(API_ROUTES.featureCosts, { auth: false });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && data.data?.costs) {
-        // 保存到缓存
-        saveCachedCosts(data.data.costs);
-        console.log('[feature-costs] 已加载最新配置:', data.data.costs, '来源:', data.data.source);
-        return;
-      }
+    if (data.success && data.data?.costs) {
+      // 保存到缓存
+      saveCachedCosts(data.data.costs);
+      console.log('[feature-costs] 已加载最新配置:', data.data.costs, '来源:', data.data.source);
+      return;
     }
   } catch (e) {
     console.warn('[feature-costs] 加载配置失败，使用默认值:', e);

@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { useFeatures, type PublicFeature } from '@/lib/use-features';
 import { isFeatureRegistered } from '@/lib/feature-registry';
 import { preloadFeatureCosts } from '@/lib/feature-costs';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 
 // 把 feature_id 映射到 lucide 图标（小写 key）
 // 之前错误地写为 ES6 shorthand: { Mountain } -> key="Mountain"
@@ -178,15 +179,14 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
     const checkAuthAndFetchStatus = async () => {
       try {
         // 先确认登录态（HttpOnly cookie 鉴权）
-        const meRes = await fetch('/api/auth/me', { credentials: 'include' });
-        if (!meRes.ok) return; // 未登录时不拉取状态
+        const meRes = await apiClient.get(API_ROUTES.me, { withCredentials: true, auth: false });
+        if (!meRes.success) return; // 未登录时不拉取状态
 
         const fetchFeaturesStatus = async () => {
           try {
             // Phase 9.25 · 修复: /api/admin/features-status 已在 Phase 9.24 清理
             // 改用公共 /api/features(已含 enabled 字段)
-            const response = await fetch('/api/features', { credentials: 'include' });
-            const result = await response.json();
+            const result = await apiClient.get<{ features: Array<{ id: string; enabled: boolean; reason?: string }> }>(API_ROUTES.features, { withCredentials: true, auth: false });
 
             if (result.success) {
               const status: Record<string, { enabled: boolean; reason?: string }> = {};

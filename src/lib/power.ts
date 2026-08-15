@@ -1,6 +1,7 @@
 // 算力管理 Hook
 import { useState, useEffect, useCallback } from 'react';
 import { getAuthHeader } from '@/hooks/useAuth';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 
 const POWER_KEY = 'dunhuang_power';
@@ -60,18 +61,10 @@ export function usePower() {
   const addPower = useCallback(async (amount: number, reason: string = '充值') => {
     if (isAuthenticated) {
       try {
-        const res = await fetch('/api/power', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(),
-          },
-          body: JSON.stringify({ action: 'add', amount, reason }),
-        });
-        const data = await res.json();
+        const data = await apiClient.post(API_ROUTES.power, { action: 'add', amount, reason });
         if (data.success) {
           refreshUser?.();
-          return data.data.power;
+          return (data.data as { power?: number }).power;
         } else {
           throw new Error(data.error || '充值失败');
         }
@@ -102,19 +95,11 @@ export function usePower() {
       setLocalPower(newPower);
 
       try {
-        const res = await fetch('/api/power', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(),
-          },
-          body: JSON.stringify({ action: 'deduct', amount, reason }),
-        });
-        const data = await res.json();
+        const data = await apiClient.post(API_ROUTES.power, { action: 'deduct', amount, reason });
         if (data.success) {
           refreshUser?.();
           console.log(`[power] 扣减成功: -${amount} (${reason})`);
-          return data.data.power;
+          return (data.data as { power?: number }).power;
         } else {
           // API 返回错误，刷新同步状态
           console.error('[power] 扣减失败:', data.error);
@@ -145,18 +130,10 @@ export function usePower() {
 
     if (isAuthenticated) {
       try {
-        const res = await fetch('/api/power', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(),
-          },
-          body: JSON.stringify({ action: 'set', amount: newPower, reason }),
-        });
-        const data = await res.json();
+        const data = await apiClient.post(API_ROUTES.power, { action: 'set', amount: newPower, reason });
         if (data.success) {
           refreshUser?.();
-          return data.data.power;
+          return (data.data as { power?: number }).power;
         } else {
           throw new Error(data.error || '设置失败');
         }

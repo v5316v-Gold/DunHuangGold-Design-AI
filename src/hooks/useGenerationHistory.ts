@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getAuthHeader } from '@/lib/auth-client';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 import { toast } from 'sonner';
 
 interface HistoryItem {
@@ -276,20 +277,13 @@ export function useGenerationHistory({
       // 从 localStorage 取 token（与 useAuth 一致）
       const authHeader = getAuthHeader();
 
-      await fetch('/api/works', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeader,
-        },
-        body: JSON.stringify({
-          title,
-          type: item.featureId, // 存 featureId，与 API 路由 filter 对应
-          prompt: item.prompt || null,
-          image_url: imageUrl,
-          model_url: item.modelUrl || null,
-          video_url: item.videoUrl || null,
-        }),
+      await apiClient.post(API_ROUTES.works, {
+        title,
+        type: item.featureId,
+        prompt: item.prompt || null,
+        image_url: imageUrl,
+        model_url: item.modelUrl || null,
+        video_url: item.videoUrl || null,
       });
     } catch (err) {
       console.error('[useGenerationHistory] API 保存失败:', err);

@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { getAuthHeader } from '@/lib/auth-client';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 
 export type TranslateDirection = 'zh-en' | 'en-zh';
 
@@ -12,16 +13,7 @@ export function usePromptTranslate(getPrompt: () => string, setPrompt: (v: strin
     const currentPrompt = getPrompt();
     if (!currentPrompt.trim()) return;
     try {
-      const res = await fetch('/api/translate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        credentials: 'include',
-        body: JSON.stringify({ text: currentPrompt.trim(), dir }),
-      });
-      const data = await res.json();
+      const data = await apiClient.post<{ translated?: string }>(API_ROUTES.translate, { text: currentPrompt.trim(), dir }, { withCredentials: true });
       if (data.success && data.data?.translated) {
         setPromptRef.current(data.data.translated);
       } else {

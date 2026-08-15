@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { getAuthHeader } from '@/lib/auth-client';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 
 export function usePromptOptimize(getPrompt: () => string, setPrompt: (v: string) => void) {
   const setPromptRef = useRef(setPrompt);
@@ -10,16 +11,7 @@ export function usePromptOptimize(getPrompt: () => string, setPrompt: (v: string
     const currentPrompt = getPrompt();
     if (!currentPrompt.trim()) return;
     try {
-      const res = await fetch('/api/prompt-optimize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-        credentials: 'include',
-        body: JSON.stringify({ prompt: currentPrompt.trim(), ruleId }),
-      });
-      const data = await res.json();
+      const data = await apiClient.post<{ optimized?: string }>(API_ROUTES.promptOptimize, { prompt: currentPrompt.trim(), ruleId }, { withCredentials: true });
       if (data.success && data.data?.optimized) {
         setPromptRef.current(data.data.optimized);
       } else {
