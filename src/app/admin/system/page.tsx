@@ -1,4 +1,5 @@
 'use client';
+import { apiClient, API_ROUTES } from '@/lib/api-client';
 
 /**
  * 系统健康面板 (Admin)
@@ -129,13 +130,11 @@ export default function SystemHealthPage() {
   const loadData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
-      const res = await fetch('/api/admin/system', {
-        headers: getAuthHeader(),
-        cache: 'no-store',
+      const data = await apiClient.get<SystemHealthReport>(API_ROUTES.adminSystem, {
+        headers: { 'Cache-Control': 'no-store' },
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || `请求失败 (HTTP ${res.status})`);
+      if (!data.success) {
+        throw new Error(data.error || '请求失败');
       }
       setReport(data.data as SystemHealthReport);
       setError(null);

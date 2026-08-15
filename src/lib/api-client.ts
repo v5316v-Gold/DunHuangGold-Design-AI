@@ -80,6 +80,8 @@ export const API_ROUTES = {
   // 管理后台
   adminModelRegistry: '/api/admin/model-registry',
   adminModelRegistryItem: (id: string) => `/api/admin/model-registry/${id}`,
+  adminSystem: '/api/admin/system',
+  adminFeatureCosts: '/api/admin/feature-costs',
 } as const;
 
 // ==================== 类型定义 ====================

@@ -99,25 +99,13 @@ export async function preloadFeatureCosts(): Promise<void> {
  */
 export async function saveFeatureCosts(costs: Record<string, number>): Promise<boolean> {
   try {
-    const res = await fetch('/api/admin/feature-costs', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(typeof window !== 'undefined' && localStorage.getItem('dunhuang_token')
-          ? { Authorization: `Bearer ${localStorage.getItem('dunhuang_token')}` }
-          : {}),
-      },
-      body: JSON.stringify({ features: costs }),
-    });
+    const data = await apiClient.put(API_ROUTES.adminFeatureCosts, { features: costs });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success) {
-        // 保存到本地缓存
-        saveCachedCosts(costs);
-        console.log('[feature-costs] 已保存配置:', costs);
-        return true;
-      }
+    if (data.success) {
+      // 保存到本地缓存
+      saveCachedCosts(costs);
+      console.log('[feature-costs] 已保存配置:', costs);
+      return true;
     }
   } catch (e) {
     console.error('[feature-costs] 保存配置失败:', e);
