@@ -1,6 +1,10 @@
 /**
- * 16个AI功能配置定义
- * 每个功能对应云端API、本地ComfyUI（15个）、本地大模型（1个）
+ * 17个AI功能配置定义
+ * 每个功能对应云端API、本地ComfyUI（16个）、本地大模型（1个）
+ *
+ * ⚠️ key 与 id 必须使用短 id，与 src/lib/feature-registry.ts 的 featureComponents key 完全一致：
+ * text2img, dialogue, relief, image3d, 2dto3d, refine, blend, oneclick, multiview,
+ * sketch, free, text2video, img2video, removebg, upscale, watermark, tryon
  */
 
 // ==================== 功能定义 ====================
@@ -30,8 +34,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'product-refine': {
-    id: 'product-refine',
+  'refine': {
+    id: 'refine',
     name: '产品精修',
     description: 'AI智能精修产品图片',
     icon: 'Sparkles',
@@ -41,8 +45,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'multi-image': {
-    id: 'multi-image',
+  'blend': {
+    id: 'blend',
     name: '多图融合',
     description: '多张图片融合创意合成',
     icon: 'Layers',
@@ -52,8 +56,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'one-click-design': {
-    id: 'one-click-design',
+  'oneclick': {
+    id: 'oneclick',
     name: '一键设计',
     description: '智能一键生成设计方案',
     icon: 'Zap',
@@ -63,8 +67,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'multi-view': {
-    id: 'multi-view',
+  'multiview': {
+    id: 'multiview',
     name: '生成多视图',
     description: '生成商品多角度视图',
     icon: 'Box',
@@ -74,8 +78,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'sketch-realistic': {
-    id: 'sketch-realistic',
+  'sketch': {
+    id: 'sketch',
     name: '线稿/写实',
     description: '线稿图转换为写实照片',
     icon: 'Pencil',
@@ -85,8 +89,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'free-creation': {
-    id: 'free-creation',
+  'free': {
+    id: 'free',
     name: '自由创作区',
     description: '自由发挥的AI创作空间',
     icon: 'Palette',
@@ -96,8 +100,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'remove-background': {
-    id: 'remove-background',
+  'removebg': {
+    id: 'removebg',
     name: '移除背景',
     description: 'AI智能移除图片背景',
     icon: 'Eraser',
@@ -118,8 +122,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'remove-watermark': {
-    id: 'remove-watermark',
+  'watermark': {
+    id: 'watermark',
     name: '去除水印',
     description: 'AI智能去除图片水印',
     icon: 'Wand2',
@@ -129,7 +133,7 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  
+
   // ========== 3D类 ==========
   'relief': {
     id: 'relief',
@@ -142,8 +146,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'image-3d': {
-    id: 'image-3d',
+  'image3d': {
+    id: 'image3d',
     name: '3D模型生成',
     description: '图片转换为3D模型',
     icon: 'Box',
@@ -153,8 +157,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  'stereo': {
-    id: 'stereo',
+  '2dto3d': {
+    id: '2dto3d',
     name: '图像转立体',
     description: '生成深度立体效果',
     icon: 'Scan',
@@ -164,7 +168,7 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: true,
   },
-  
+
   // ========== 视频类 ==========
   'text2video': {
     id: 'text2video',
@@ -177,8 +181,8 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: false,
   },
-  'image2video': {
-    id: 'image2video',
+  'img2video': {
+    id: 'img2video',
     name: '图生视频',
     description: '图片生成动态视频',
     icon: 'Film',
@@ -188,10 +192,10 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
     priority: ['cloud', 'local'],
     autoFallback: false,
   },
-  
+
   // ========== 对话类 ==========
-  'ai-chat': {
-    id: 'ai-chat',
+  'dialogue': {
+    id: 'dialogue',
     name: 'AI对话',
     description: '智能AI对话助手',
     icon: 'MessageCircle',
@@ -222,21 +226,21 @@ export const FEATURE_DEFINITIONS: Record<string, FeatureDefinition> = {
 
 export const FEATURE_LIST = [
   { id: 'relief', order: 1 },
-  { id: 'image-3d', order: 2 },
-  { id: 'stereo', order: 3 },
+  { id: 'image3d', order: 2 },
+  { id: '2dto3d', order: 3 },
   { id: 'text2img', order: 4 },
-  { id: 'product-refine', order: 5 },
-  { id: 'multi-image', order: 6 },
-  { id: 'one-click-design', order: 7 },
-  { id: 'multi-view', order: 8 },
-  { id: 'sketch-realistic', order: 9 },
-  { id: 'free-creation', order: 10 },
+  { id: 'refine', order: 5 },
+  { id: 'blend', order: 6 },
+  { id: 'oneclick', order: 7 },
+  { id: 'multiview', order: 8 },
+  { id: 'sketch', order: 9 },
+  { id: 'free', order: 10 },
   { id: 'text2video', order: 11 },
-  { id: 'image2video', order: 12 },
-  { id: 'remove-background', order: 13 },
+  { id: 'img2video', order: 12 },
+  { id: 'removebg', order: 13 },
   { id: 'upscale', order: 14 },
-  { id: 'remove-watermark', order: 15 },
-  { id: 'ai-chat', order: 16 },
+  { id: 'watermark', order: 15 },
+  { id: 'dialogue', order: 16 },
   { id: 'tryon', order: 17 },
 ];
 

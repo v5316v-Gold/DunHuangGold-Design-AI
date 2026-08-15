@@ -27,19 +27,24 @@ export default function Image3D({ power, onDeductPower }: WorkspaceProps) {
   const [modelType, setModelType] = useState<'geometry' | 'geometry_texture'>('geometry_texture');
   const [precision, setPrecision] = useState<'standard' | 'ultra'>('standard');
 
-  const cost = getTaskCost('image-3d');
+  const cost = getTaskCost('image3d');
 
   const { isGenerating, progress, error, generate, setError } = useAiGeneration({
-    featureId: 'image-3d',
+    featureId: 'image3d',
     cost,
     power,
     onDeductPower,
     onSuccess: (data) => {
-      setResult(data.modelUrl || data);
+      // 归一化结果：modelUrl 用 data.modelUrl，预览图用 data.imageUrl
+      const d = (data || {}) as { imageUrl?: string | null; modelUrl?: string | null };
+      setResult(d.modelUrl || null);
+      if (d.imageUrl) {
+        addToHistory({ featureId: 'image3d', imageUrl: d.imageUrl });
+      }
     },
   });
 
-  const { history, addToHistory, clearHistory } = useGenerationHistory({ featureId: 'image-3d', limit: 20 });
+  const { history, addToHistory, clearHistory } = useGenerationHistory({ featureId: 'image3d', limit: 20 });
 
   // 有作品则展开侧边栏，没作品则收起
   const [showHistory, setShowHistory] = useState(false);

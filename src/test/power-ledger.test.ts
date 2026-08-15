@@ -65,18 +65,30 @@ describe('PowerLedger · 三态生命周期（内存降级）', () => {
     expect(s.success).toBe(true);
   });
 
-  it('重复 settle → 报错（已结算）', async () => {
+  it('consume 幂等：重复 consume 不重复扣减', async () => {
     const r = await ledger.reserve({
       userId: 'u1',
       featureId: 'text2img',
       amount: 15,
       taskId: 'task-2x',
     });
-    const s1 = await ledger.settle(r.reservation!.id, 'release');
-    expect(s1.success).toBe(true);
+    const s1 = await ledger.settle(r.reservation!.id, 'consume');
     const s2 = await ledger.settle(r.reservation!.id, 'consume');
-    expect(s2.success).toBe(false);
-    expect(s2.error).toContain('已结算');
+    expect(s1.success).toBe(true);
+    // Phase 修复：consume 改为幂等 no-op，Worker 重试不会重复扣减
+    expect(s2.success).toBe(true);
+  });
+
+  it('release 后仍可 consume（重试场景：失败释放 → 重试成功再扣）', async () => {
+    const r = await ledger.reserve({
+      userId: 'u1',
+      featureId: 'text2img',
+      amount: 15,
+      taskId: 'task-retry',
+    });
+    await ledger.settle(r.reservation!.id, 'release');
+    const s = await ledger.settle(r.reservation!.id, 'consume');
+    expect(s.success).toBe(true);
   });
 
   it('按任务查预留 findByTask', async () => {

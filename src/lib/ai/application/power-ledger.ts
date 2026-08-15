@@ -15,7 +15,7 @@
  * DB 不可用 → 内存降级（map），生产依赖 PG 事务。
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { users, powerLogs, powerTransactions } from '@/db/schema/_tables';
 import { powerReservations } from '@/db/schema/power-reservations';
@@ -153,81 +153,104 @@ export class PowerLedger {
     if (!reservation) {
       return { success: false, error: '预留不存在' };
     }
-    if (reservation.status !== 'reserved') {
-      return { success: false, error: `预留已结算（${reservation.status}）` };
-    }
-
+    // 状态机（幂等）：
+    //   release：仅 reserved → released；consumed 不回退
+    //   consume：reserved/released → consumed（原子扣减）；consumed → no-op
     if (outcome === 'release') {
+      if (reservation.status === 'consumed') {
+        return { success: true };
+      }
       if (db) {
         try {
           await withRetry(() =>
             dbc
               .update(powerReservations)
               .set({ status: 'released', settledAt: new Date() })
-              .where(eq(powerReservations.id, reservationId))
+              .where(
+                and(
+                  eq(powerReservations.id, reservationId),
+                  eq(powerReservations.status, 'reserved')
+                )
+              )
           );
         } catch {
           // 内存同步
         }
       }
       const mem = memoryReservations.get(reservationId);
-      if (mem) mem.status = 'released';
+      if (mem && mem.status === 'reserved') mem.status = 'released';
       logger.info(`[ledger] 释放预留: ${reservationId}`);
       return { success: true };
     }
 
-    // consume：事务内扣余额 + 写流水 + 预留置 consumed
+    // consume：内存降级
     if (!db) {
-      // 内存降级：只标记 consumed
       const mem = memoryReservations.get(reservationId);
       if (mem) mem.status = 'consumed';
       return { success: true };
     }
+
+    // consume：真实数据库事务（原子 + 幂等）
     try {
       await withRetry(async () => {
-        // 事务
-        const [user] = await dbc
-          .select()
-          .from(users)
-          .where(eq(users.id, reservation!.userId))
-          .limit(1);
-        if (!user) throw new Error('用户不存在');
-        if (user.power < reservation!.amount) throw new Error('算力不足');
+        await dbc.transaction(async (tx) => {
+          // 1. 原子认领预留：reserved/released → consumed，并发下仅一个赢家
+          const claimed = await tx
+            .update(powerReservations)
+            .set({ status: 'consumed', settledAt: new Date() })
+            .where(
+              and(
+                eq(powerReservations.id, reservationId),
+                inArray(powerReservations.status, ['reserved', 'released'])
+              )
+            )
+            .returning({
+              userId: powerReservations.userId,
+              amount: powerReservations.amount,
+              featureId: powerReservations.featureId,
+              taskId: powerReservations.taskId,
+            });
 
-        const newPower = user.power - reservation!.amount;
+          if (claimed.length === 0) {
+            // 已 consumed（重复结算）→ 不再扣
+            return;
+          }
+          const r = claimed[0];
+          const amount = r.amount;
 
-        // 扣余额
-        await dbc
-          .update(users)
-          .set({ power: newPower, updatedAt: new Date() })
-          .where(eq(users.id, reservation!.userId));
+          // 2. 原子扣余额（WHERE power >= amount 防并发超扣）
+          const updated = await tx
+            .update(users)
+            .set({ power: sql`${users.power} - ${amount}`, updatedAt: new Date() })
+            .where(and(eq(users.id, r.userId), gte(users.power, amount)))
+            .returning({ power: users.power });
 
-        // 写 power_logs（兼容旧查询）
-        await dbc.insert(powerLogs).values({
-          userId: reservation!.userId,
-          type: 'deduct',
-          amount: -reservation!.amount,
-          balance: newPower,
-          reason: `AI 服务: ${reservation!.featureId}`,
-          relatedId: reservation!.taskId ?? undefined,
+          if (updated.length === 0) {
+            throw new Error('算力不足或用户不存在');
+          }
+          const newPower = updated[0].power;
+
+          // 3. 写 power_logs（兼容旧查询）
+          await tx.insert(powerLogs).values({
+            userId: r.userId,
+            type: 'deduct',
+            amount: -amount,
+            balance: newPower,
+            reason: `AI 服务: ${r.featureId}`,
+            relatedId: r.taskId ?? undefined,
+          });
+
+          // 4. 写 power_transactions（ledger 流水）
+          await tx.insert(powerTransactions).values({
+            userId: r.userId,
+            type: 'consume',
+            amount: -amount,
+            balanceBefore: newPower + amount,
+            balanceAfter: newPower,
+            reason: `AI 功能: ${r.featureId}`,
+            relatedId: r.taskId ?? undefined,
+          });
         });
-
-        // 写 power_transactions（ledger 流水）
-        await dbc.insert(powerTransactions).values({
-          userId: reservation!.userId,
-          type: 'consume',
-          amount: -reservation!.amount,
-          balanceBefore: user.power,
-          balanceAfter: newPower,
-          reason: `AI 功能: ${reservation!.featureId}`,
-          relatedId: reservation!.taskId ?? undefined,
-        });
-
-        // 预留置 consumed
-        await dbc
-          .update(powerReservations)
-          .set({ status: 'consumed', settledAt: new Date() })
-          .where(eq(powerReservations.id, reservationId));
       });
       logger.info(`[ledger] 结算扣减: ${reservationId} ${reservation.amount}`);
       return { success: true };

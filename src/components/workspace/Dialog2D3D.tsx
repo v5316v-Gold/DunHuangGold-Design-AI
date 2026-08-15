@@ -6,6 +6,7 @@ import { Upload, Download, RefreshCw, Layers, Clock, X } from 'lucide-react';
 import { getTaskCost } from '@/lib/power';
 import { cn } from '@/lib/utils';
 import { callApi } from '@/lib/api-service';
+import { getAuthHeader } from '@/lib/auth-client';
 import { WorkspaceProps } from '@/constants/workspace';
 import ImageLoader from '@/components/ui/ImageLoader';
 
@@ -52,8 +53,8 @@ export default function Dialog2D3D({ power, onDeductPower }: WorkspaceProps) {
     if (power < cost) { setError(`算力不足！需要: ${cost}`); return; }
     setIsGenerating(true); setError(null);
     try {
-      // 使用配置化API调用
-      const response = await callApi<string>('stereo', {
+      // 使用配置化API调用（异步任务：返回 taskId + statusUrl）
+      const response = await callApi<any>('2dto3d', {
         params: {
           image: uploadedImage,
           resolution,
@@ -61,23 +62,71 @@ export default function Dialog2D3D({ power, onDeductPower }: WorkspaceProps) {
         },
       });
 
+      const respData = (response?.data ?? response) as any;
+      const taskId = respData?.taskId as string | undefined;
+
+      // 异步任务：轮询 /api/tasks/{taskId} 直至 completed / failed
+      if (response.success && taskId) {
+        const statusUrl = `/api/tasks/${taskId}`;
+        const POLL_INTERVAL = 2000;
+        const MAX_POLLS = 300; // 10 分钟上限
+        for (let i = 0; i < MAX_POLLS; i++) {
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+          try {
+            const pollRes = await fetch(statusUrl, { headers: { ...getAuthHeader() } });
+            if (!pollRes.ok) {
+              if (pollRes.status >= 500) continue;
+              throw new Error(`轮询任务失败: HTTP ${pollRes.status}`);
+            }
+            const pollJson = await pollRes.json();
+            const taskData = pollJson?.data ?? pollJson;
+            const status = String(taskData?.status ?? '');
+            if (status === 'completed') {
+              const output = (taskData?.output ?? {}) as any;
+              const artifacts = Array.isArray(output.artifacts) ? output.artifacts : [];
+              const images = artifacts.map((a: any) => a?.url).filter(Boolean) as string[];
+              const previewImg = (output.imageUrl as string) ?? images[0] ?? null;
+              const modelUrl = (output.modelUrl as string)
+                ?? artifacts.find((a: any) => String(a?.mime || '').includes('glb') || String(a?.url || '').includes('.glb'))?.url
+                ?? null;
+              setResult(previewImg);
+              setResultModelUrl(modelUrl);
+              setViewMode(modelUrl ? '3d' : 'image');
+              onDeductPower(cost, '平面转雕塑');
+              if (previewImg) {
+                const newItem: HistoryItem = {
+                  id: Date.now().toString(),
+                  imageUrl: previewImg,
+                  resolution,
+                  timestamp: new Date(),
+                };
+                setHistory((prev) => [newItem, ...prev]);
+              }
+              return;
+            }
+            if (status === 'failed' || status === 'dead_letter') {
+              throw new Error(String(taskData?.error ?? '任务失败'));
+            }
+            // pending / processing 继续轮询
+          } catch (pollErr) {
+            if ((pollErr as Error).name === 'AbortError') throw pollErr;
+            if (i > 5) throw pollErr; // 前 5 次容错
+          }
+        }
+        throw new Error('任务超时(10分钟未完成)');
+      }
+
+      // 同步模式兜底
       if (response.success && response.data) {
-        // Meshy 立体返回 { data: previewImage, modelUrl, ... }
-        const previewImg = typeof response.data === 'object' ? (response.data as any).previewImage || (response.data as any).data || null : response.data;
-        const modelUrl = typeof response.data === 'object' ? (response.data as any).modelUrl || null : null;
+        const syncData = response.data as any;
+        const previewImg = typeof syncData === 'object'
+          ? syncData.imageUrl || syncData.previewImage || null
+          : syncData;
+        const modelUrl = typeof syncData === 'object' ? syncData.modelUrl || null : null;
         setResult(previewImg);
         setResultModelUrl(modelUrl);
-        if (modelUrl) setViewMode('3d');
-        else setViewMode('image');
+        setViewMode(modelUrl ? '3d' : 'image');
         onDeductPower(cost, '平面转雕塑');
-
-        const newItem: HistoryItem = {
-          id: Date.now().toString(),
-          imageUrl: previewImg,
-          resolution,
-          timestamp: new Date(),
-        };
-        setHistory((prev) => [newItem, ...prev]);
       } else {
         setError(response.error || '生成失败');
       }

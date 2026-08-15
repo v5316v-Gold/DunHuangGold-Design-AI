@@ -34,17 +34,14 @@ export default function ReliefDesign({ power, onDeductPower }: WorkspaceProps) {
     power,
     onDeductPower,
     onSuccess: (data) => {
-      if (typeof data === 'object' && data !== null) {
-        const preview = (data as any).previewImage || (data as any).data || null;
-        const modelUrl = (data as any).modelUrl || null;
-        setResult(preview);
-        setResultModelUrl(modelUrl);
-        addToHistory({ featureId: 'relief', imageUrl: preview || '', modelUrl: modelUrl || undefined });
-      } else {
-        setResult(typeof data === 'string' ? data : null);
-        setResultModelUrl(null);
-        addToHistory({ featureId: 'relief', imageUrl: typeof data === 'string' ? data : '' });
-      }
+      // 归一化结果：data 为 { imageUrl, images, modelUrl, ... }
+      const d = (data || {}) as { imageUrl?: string | null; images?: string[]; modelUrl?: string | null };
+      const imageList = (Array.isArray(d.images) ? d.images : [d.imageUrl]).filter(Boolean) as string[];
+      const preview = imageList[0] || null;
+      const modelUrl = d.modelUrl || null;
+      setResult(preview);
+      setResultModelUrl(modelUrl);
+      addToHistory({ featureId: 'relief', imageUrl: preview || '', modelUrl: modelUrl || undefined });
     },
   });
 

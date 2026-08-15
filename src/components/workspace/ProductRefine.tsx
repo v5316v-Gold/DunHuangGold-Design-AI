@@ -39,8 +39,14 @@ export default function ProductRefine({ power, onDeductPower }: WorkspaceProps) 
     power,
     onDeductPower,
     onSuccess: (data) => {
-      setResult(data);
-      addToHistory({ featureId: 'refine', imageUrl: data, prompt: prompt || '产品精修' });
+      // 归一化结果：data 为 { imageUrl, images, modelUrl, ... }
+      const d = (data || {}) as { imageUrl?: string | null; images?: string[] };
+      const imageList = (Array.isArray(d.images) ? d.images : [d.imageUrl]).filter(Boolean) as string[];
+      const image = imageList[0] || null;
+      setResult(image);
+      if (image) {
+        addToHistory({ featureId: 'refine', imageUrl: image, prompt: prompt || '产品精修' });
+      }
     },
   });
 

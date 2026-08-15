@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/error-handler';
 const logger = createLogger('chat');
 
 import { getApiConfig } from '@/lib/api-config-service';
-import { execSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { chatSchema, sanitizeError } from '@/lib/validators';
 import { randomUUID } from 'crypto';
 import { unauthorized } from '@/lib/api-response';
@@ -346,37 +346,60 @@ async function handleOpenClawChat(messages: any[], conversationId: string): Prom
 
 /**
  * 调用 OpenClaw CLI
+ * 使用 spawn + 参数数组（shell: false）执行，消息作为单个参数传入，
+ * 不拼进命令行字符串，杜绝命令注入
  */
 function callOpenClaw(message: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    try {
-      const openclawPath = 'C:\\Users\\v5316\\AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\index.js';
-      const cmd = `node "${openclawPath}" agent --agent main --message "${message.replace(/"/g, '\\"')}" --json`;
-      
-      logger.info('执行 OpenClaw CLI', { cmd });
+    const openclawPath = 'C:\\Users\\v5316\\AppData\\Roaming\\npm\\node_modules\\openclaw\\dist\\index.js';
+    // 参数数组传参（shell: false）：--message 的值是独立参数，含引号/特殊字符也不会被 shell 解释
+    const args = [openclawPath, 'agent', '--agent', 'main', '--message', message, '--json'];
 
-      const stdout = execSync(cmd, {
-        windowsHide: true,
-        timeout: 60000,
-        env: { ...process.env, OPENCLAW_GATEWAY_PORT: '18789' }
-      });
+    logger.info('执行 OpenClaw CLI', { args: args.slice(0, 5).concat(['...']) });
 
-      const result = stdout.toString();
+    const child = spawn('node', args, {
+      windowsHide: true,
+      shell: false,
+      env: { ...process.env, OPENCLAW_GATEWAY_PORT: '18789' },
+    });
+
+    let stdout = '';
+    let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('OpenClaw 响应超时（60s）'));
+    }, 60000);
+
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(new Error(`OpenClaw 启动失败: ${error.message}`));
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0) {
+        logger.error('OpenClaw CLI 非零退出', { code, stderr: stderr.slice(0, 500), stdout: stdout.slice(0, 500) });
+        reject(new Error(`AI 服务调用失败 (exit ${code})${stderr ? ': ' + stderr.slice(0, 200) : ''}`));
+        return;
+      }
+
+      const result = stdout;
       logger.info('九色鹿原始输出', { resultLength: result.length });
 
-      const response = JSON.parse(result);
-      const text = response.result?.payloads?.[0]?.text || '';
-      logger.info('九色鹿响应成功', { textLength: text.length });
-      resolve(text);
-    } catch (error: unknown) {
-      const err = error as Error & { stderr?: Buffer; stdout?: Buffer };
-      logger.error('OpenClaw CLI 失败', { 
-        error: err.message, 
-        stderr: err.stderr?.toString(),
-        stdout: err.stdout?.toString()
-      });
-      reject(new Error(`AI 服务调用失败: ${err.message}`));
-    }
+      try {
+        const response = JSON.parse(result);
+        const text = response.result?.payloads?.[0]?.text || '';
+        logger.info('九色鹿响应成功', { textLength: text.length });
+        resolve(text);
+      } catch (error: unknown) {
+        const err = error as Error;
+        logger.error('OpenClaw 输出解析失败', { stdout: stdout.slice(0, 500), stderr: stderr.slice(0, 500) });
+        reject(new Error(`AI 服务调用失败: ${err.message}`));
+      }
+    });
   });
 }
 

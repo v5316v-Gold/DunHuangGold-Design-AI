@@ -96,8 +96,10 @@ export const tasks = pgTable('tasks', {
   executor: varchar('executor', { length: 50 }),             // 执行器：mock/comfyui/third-party
   retryCount: integer('retry_count').default(0).notNull(),   // 重试次数
   maxRetries: integer('max_retries').default(3).notNull(),   // 最大重试
+  attempt: integer('attempt').default(0).notNull(),          // 当前尝试次数（task-state 写入）
   cancelledAt: timestamp('cancelled_at'),                    // 取消时间
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(), // 状态更新时间
   startedAt: timestamp('started_at'),
   completedAt: timestamp('completed_at'),
 });

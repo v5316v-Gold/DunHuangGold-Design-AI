@@ -38,18 +38,20 @@ export default function Text2Image({ power, onDeductPower }: WorkspaceProps) {
     power,
     onDeductPower,
     onSuccess: (data) => {
-      const images = Array.isArray(data) ? data : [data];
-      if (images.length > 0 && images[0]) {
+      // 归一化结果：data 为 { imageUrl, images, modelUrl, ... }
+      const d = (data || {}) as { imageUrl?: string | null; images?: string[] };
+      const imageList = (Array.isArray(d.images) ? d.images : [d.imageUrl]).filter(Boolean) as string[];
+      if (imageList.length > 0 && imageList[0]) {
         const newImage: HistoryItemData = {
           id: crypto.randomUUID(),
-          imageUrl: images[0],
+          imageUrl: imageList[0],
           prompt: prompt.trim(),
           timestamp: new Date(),
         };
         setGeneratedImages((prev) => [newImage, ...prev]);
         addToHistory({
           featureId: 'text2img',
-          imageUrl: images[0],
+          imageUrl: imageList[0],
           prompt: prompt.trim(),
         });
       }

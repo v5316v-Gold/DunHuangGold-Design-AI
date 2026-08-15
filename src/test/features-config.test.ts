@@ -5,10 +5,9 @@ describe('features.ts', () => {
   describe('FEATURE_DEFINITIONS', () => {
     it('should have all required features defined', () => {
       const requiredIds = [
-        'text2img', 'product-refine', 'multi-image', 'one-click-design',
-        'multi-view', 'sketch-realistic', 'free-creation', 'remove-background',
-        'upscale', 'remove-watermark', 'relief', 'image-3d', 'stereo',
-        'text2video', 'image2video', 'ai-chat', 'tryon',
+        'text2img', 'refine', 'blend', 'oneclick', 'multiview', 'sketch',
+        'free', 'removebg', 'upscale', 'watermark', 'relief', 'image3d',
+        '2dto3d', 'text2video', 'img2video', 'dialogue', 'tryon',
       ];
       requiredIds.forEach(id => {
         expect(FEATURE_DEFINITIONS).toHaveProperty(id);

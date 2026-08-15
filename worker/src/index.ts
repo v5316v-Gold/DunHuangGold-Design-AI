@@ -23,6 +23,9 @@ import {
 } from '@/lib/queue/task-state';
 // Phase 9.24: ai-service/services 已删除（死代码）；改走 PolicyOrchestrator 主链路
 import { policyOrchestrator } from '@/lib/ai/orchestration/policy-orchestrator';
+// Phase 9.26 · 必须注册 executors（否则 PolicyOrchestrator.executors 空 Map → 全部任务失败）
+import '@/lib/ai/adapters/executor-registry';
+import { generationService } from '@/lib/ai/application/generation-service';
 import { db } from '@/storage/database/db';
 import { works } from '@/storage/database/shared/schema';
 import { createLogger } from '@/lib/error-handler';
@@ -110,6 +113,13 @@ async function processJob(job: Job<JobData>): Promise<unknown> {
       powerCost: 0,
     });
 
+    // 8. 结算算力（consume：预留 → 正式扣减，幂等）
+    try {
+      await generationService.settlePower(userId, taskId, 'consume');
+    } catch (e) {
+      logger.warn(`算力结算失败（不阻断任务完成）: ${taskId}`, e);
+    }
+
     return {
       success: true,
       taskId,
@@ -122,6 +132,12 @@ async function processJob(job: Job<JobData>): Promise<unknown> {
     if (attempt >= maxAttempts) {
       // 死信
       await markDeadLetter(taskId, errMsg);
+      // 释放算力预留（失败 → release，不扣减）
+      try {
+        await generationService.settlePower(userId, taskId, 'release');
+      } catch (e) {
+        logger.warn(`释放预留失败: ${taskId}`, e);
+      }
       await sendDeadLetterAlert(taskId, serviceType, errMsg);
       // 不抛错（BullMQ 不会重试）
       return { success: false, deadLetter: true, error: errMsg };
@@ -169,8 +185,8 @@ function startWorker(): Worker<JobData> {
         max: 10,
         duration: 60_000,       // 每分钟最多 10 个任务
       },
-      stalledInterval: 30_000,  // 30s 检查一次 stalled
-      maxStalledCount: 2,        // 最多 stall 2 次
+      stalledInterval: 130_000, // 长任务（最长 120s）避免被 30s 默认 stalled 判定重复执行
+      maxStalledCount: 1,        // 最多 stall 恢复 1 次
     }
   );
 

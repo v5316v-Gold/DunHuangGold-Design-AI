@@ -4,7 +4,7 @@ import { sanitizeError } from '@/lib/validators';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { users, powerLogs } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, gte, sql, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 // Phase 3.6：统一 requestId 注入（envelope 可追踪性）
@@ -83,8 +83,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, amount, reason, relatedId } = body;
 
-    if (!action || !amount) {
-      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少参数' }, { status: 400 });
+    if (!action || typeof amount !== 'number' || amount < 0) {
+      return NextResponse.json({ requestId: reqId(), success: false, error: '缺少参数或参数非法' }, { status: 400 });
+    }
+
+    // 安全：add / set 属管理员操作，普通用户禁止自助充值/改余额
+    if (action === 'add' || action === 'set') {
+      if (payload.role !== 'admin') {
+        return NextResponse.json(
+          { requestId: reqId(), success: false, error: '权限不足，仅管理员可充值/设置算力' },
+          { status: 403 }
+        );
+      }
     }
 
     // 开发模式：直接返回成功
@@ -96,60 +106,69 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 获取当前算力
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, payload.userId))
-      .limit(1);
+    if (action === 'deduct') {
+      // 原子扣减：WHERE power >= amount 防并发超扣；仅操作本人
+      const updated = await db
+        .update(users)
+        .set({ power: sql`${users.power} - ${amount}`, updatedAt: new Date() })
+        .where(and(eq(users.id, payload.userId), gte(users.power, amount)))
+        .returning({ power: users.power });
 
-    if (!user) {
-      return NextResponse.json({ requestId: reqId(), success: false, error: '用户不存在' }, { status: 404 });
+      if (updated.length === 0) {
+        return NextResponse.json({ requestId: reqId(), success: false, error: '算力不足或用户不存在' }, { status: 400 });
+      }
+      const newPower = updated[0].power;
+
+      await db.insert(powerLogs).values({
+        userId: payload.userId,
+        type: 'deduct',
+        amount: -amount,
+        balance: newPower,
+        reason: reason || 'deduct算力',
+        relatedId,
+      });
+
+      return NextResponse.json({
+        requestId: reqId(), success: true,
+        data: { power: newPower },
+        message: '操作成功',
+      });
     }
 
-    let newPower: number;
+    if (action === 'add' || action === 'set') {
+      // 管理员操作：作用于本人（跨用户充值走 /api/admin/users/[id]/recharge）
+      const [user] = await db
+        .select({ power: users.power })
+        .from(users)
+        .where(eq(users.id, payload.userId))
+        .limit(1);
+      if (!user) {
+        return NextResponse.json({ requestId: reqId(), success: false, error: '用户不存在' }, { status: 404 });
+      }
+      const newPower = action === 'set' ? Math.max(0, amount) : user.power + amount;
 
-    switch (action) {
-      case 'deduct':
-        if (user.power < amount) {
-          return NextResponse.json({ requestId: reqId(), success: false, error: '算力不足' }, { status: 400 });
-        }
-        newPower = user.power - amount;
-        break;
+      await db
+        .update(users)
+        .set({ power: newPower, updatedAt: new Date() })
+        .where(eq(users.id, payload.userId));
 
-      case 'add':
-        newPower = user.power + amount;
-        break;
+      await db.insert(powerLogs).values({
+        userId: payload.userId,
+        type: action,
+        amount: action === 'add' ? amount : newPower - user.power,
+        balance: newPower,
+        reason: reason || `${action}算力`,
+        relatedId,
+      });
 
-      case 'set':
-        newPower = Math.max(0, amount);
-        break;
-
-      default:
-        return NextResponse.json({ requestId: reqId(), success: false, error: '未知操作' }, { status: 400 });
+      return NextResponse.json({
+        requestId: reqId(), success: true,
+        data: { power: newPower },
+        message: '操作成功',
+      });
     }
 
-    // 更新算力
-    await db
-      .update(users)
-      .set({ power: newPower, updatedAt: new Date() })
-      .where(eq(users.id, payload.userId));
-
-    // 记录日志
-    await db.insert(powerLogs).values({
-      userId: payload.userId,
-      type: action,
-      amount: action === 'deduct' ? -amount : amount,
-      balance: newPower,
-      reason: reason || `${action}算力`,
-      relatedId,
-    });
-
-    return NextResponse.json({
-      requestId: reqId(), success: true,
-      data: { power: newPower },
-      message: '操作成功',
-    });
+    return NextResponse.json({ requestId: reqId(), success: false, error: '未知操作' }, { status: 400 });
   } catch (error) {
     return NextResponse.json({ requestId: reqId(), success: false, error: sanitizeError(error, '操作失败').message }, { status: 500 });
   }

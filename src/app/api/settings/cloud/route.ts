@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { unauthorized } from '@/lib/api-response';
+import { unauthorized, forbidden } from '@/lib/api-response';
 import { FEATURE_DEFINITIONS } from '@/config/features';
 import { CloudApiConfig, CloudConnection, getDefaultCloudConfig } from '@/config/api-settings';
 import { randomUUID } from 'crypto';
@@ -28,6 +28,8 @@ const CLOUD_CONNECTIONS_KEY = 'cloud_connections';
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
   if (!user) return unauthorized();
+  // 云端配置含 Provider API Key（明文），仅管理员可读
+  if (user.role !== 'admin') return forbidden('仅管理员可访问云端配置');
 
   try {
     const connections = (await settingsRepository.findJson<Record<string, Partial<CloudConnection>>>(CLOUD_CONNECTIONS_KEY)) || {};
@@ -58,6 +60,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await requireAuth(request);
   if (!user) return unauthorized();
+  // 写操作会改写全局云端配置（含 API Key），仅管理员可写
+  if (user.role !== 'admin') return forbidden('仅管理员可修改云端配置');
 
   try {
     const body = await request.json();

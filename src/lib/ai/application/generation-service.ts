@@ -201,9 +201,14 @@ class GenerationService {
     const idempotencyKey =
       input.idempotencyKey || deriveIdempotencyKey(userId, featureId, params);
 
-    // 3.5 算力预留（ADR-008：reserve 不立即扣减，任务完成 consume / 失败 release）
+    // 4. 先生成 taskId（供 reserve 绑定 + 落库，二者必须同 id）
+    const taskId = randomUUID();
+
+    // 4.5 算力预留（ADR-008：reserve 不立即扣减，任务完成 consume / 失败 release）
+    //     必须带 taskId，否则 settlePower 的 findByTask 永远查不到预留
     const reservation = await powerLedger.reserve({
       userId,
+      taskId,
       featureId,
       amount: cost,
       idempotencyKey,
@@ -217,32 +222,25 @@ class GenerationService {
       };
     }
 
-    // 4. 任务落库（统一走 tasks 表，不做散落 insert）
-    let taskId = '';
+    // 5. 任务落库（统一走 tasks 表，不做散落 insert；显式使用上面的 taskId）
     try {
       if (db) {
-        const [task] = await db
-          .insert(tasks)
-          .values({
-            userId,
-            type: featureId,
-            featureCode: featureId,
-            status: 'pending',
-            input: params,
-            powerCost: cost,
-          })
-          .returning();
-        taskId = task?.id ?? '';
-      }
-      if (!taskId) {
-        // DB 不可用 / insert 失败 → 内存降级（本地开发/测试；生产 DB 正常时走真实落库）
-        taskId = randomUUID();
+        await db.insert(tasks).values({
+          id: taskId,
+          userId,
+          type: featureId,
+          featureCode: featureId,
+          status: 'pending',
+          input: params,
+          powerCost: cost,
+        });
+      } else {
+        // DB 不可用 → 内存降级（本地开发/测试；生产 DB 正常时走真实落库）
         createMemoryTask({ id: taskId, userId, type: featureId, params, powerCost: cost });
       }
     } catch (error) {
       // DB 连接失败 → 降级内存态（fail-open），不阻断业务
       logger.warn('任务落库失败，降级内存态', error as Error);
-      taskId = randomUUID();
       createMemoryTask({ id: taskId, userId, type: featureId, params, powerCost: cost });
     }
 
@@ -373,6 +371,9 @@ class GenerationService {
     } else {
       updateMemoryTask(taskId, { status: 'cancelled', completedAt: new Date().toISOString() });
     }
+
+    // 释放算力预留（任务取消 → release，不扣减）
+    await this.settlePower(userId, taskId, 'release').catch(() => undefined);
 
     // 释放幂等键（允许同参数重新提交）
     const key = deriveIdempotencyKey(userId, state.type, state.input ?? {});

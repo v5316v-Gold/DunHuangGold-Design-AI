@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { unauthorized } from '@/lib/api-response';
+import { unauthorized, forbidden } from '@/lib/api-response';
 import { LocalLLMConfig, getDefaultLocalLLMConfig } from '@/config/api-settings';
 import { db, schema } from '@/db';
 import { eq } from 'drizzle-orm';
@@ -29,6 +29,8 @@ const LLM_CONFIG_KEY = 'llm_config';
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
   if (!user) return unauthorized();
+  // LLM 配置含 API Key（明文），仅管理员可读
+  if (user.role !== 'admin') return forbidden('仅管理员可访问本地大模型配置');
 
   try {
     if (!db) {
@@ -75,6 +77,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const authUser = await requireAuth(request);
   if (!authUser) return unauthorized();
+  // 写操作会改写全局 LLM 配置（含 API Key），仅管理员可写
+  if (authUser.role !== 'admin') return forbidden('仅管理员可修改本地大模型配置');
 
   try {
     if (!db) {
@@ -143,6 +147,8 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const authUser = await requireAuth(request);
   if (!authUser) return unauthorized();
+  // 测试操作基于全局 LLM 配置（含 API Key）发起请求，仅管理员可用
+  if (authUser.role !== 'admin') return forbidden('仅管理员可测试本地大模型连接');
 
   try {
     const body = await request.json();

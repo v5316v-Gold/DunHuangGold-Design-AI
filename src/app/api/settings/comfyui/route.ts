@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { unauthorized } from '@/lib/api-response';
+import { unauthorized, forbidden } from '@/lib/api-response';
 import { FEATURE_DEFINITIONS, getFeature } from '@/config/features';
 import { db } from '@/storage/database/db';
 import { memoryDb } from '@/storage/database/memory-db';
@@ -26,6 +26,8 @@ function reqId(): string {
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
   if (!user) return unauthorized();
+  // ComfyUI 配置为系统级配置，仅管理员可读
+  if (user.role !== 'admin') return forbidden('仅管理员可访问ComfyUI配置');
 
   try {
     const configs: Record<string, any> = {};
@@ -104,6 +106,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const authUser = await requireAuth(request);
   if (!authUser) return unauthorized();
+  // 写操作会改写系统级 ComfyUI 配置，仅管理员可写
+  if (authUser.role !== 'admin') return forbidden('仅管理员可修改ComfyUI配置');
 
   try {
     const body = await request.json();
@@ -182,6 +186,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const authUser = await requireAuth(request);
   if (!authUser) return unauthorized();
+  // 重置为系统级配置操作，仅管理员可执行
+  if (authUser.role !== 'admin') return forbidden('仅管理员可重置ComfyUI配置');
 
   try {
     const { searchParams } = new URL(request.url);

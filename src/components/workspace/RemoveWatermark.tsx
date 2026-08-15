@@ -5,7 +5,7 @@ import { ImageWorkspace, ImageWorkspaceConfig } from './ImageWorkspace';
 import { WorkspaceProps } from '@/constants/workspace';
 
 const config: ImageWorkspaceConfig = {
-  featureId: 'remove-watermark',
+  featureId: 'watermark',
   title: '去除水印',
   buttonText: '开始去水印',
   deductReason: '去除水印',

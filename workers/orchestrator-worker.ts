@@ -13,6 +13,7 @@ import {
   markDeadLetter,
 } from '@/lib/queue/task-state';
 import { createLogger } from '@/lib/error-handler';
+import { generationService } from '@/lib/ai/application/generation-service';
 import { db } from '@/db';
 import { works } from '@/db/schema';
 
@@ -140,6 +141,13 @@ const worker = new Worker(
         throw e;
       }
 
+      // 结算算力（consume：预留 → 正式扣减，幂等；失败不阻断任务完成，由对账兜底）
+      try {
+        await generationService.settlePower(String(userId), String(taskId), 'consume');
+      } catch (e) {
+        logger.error(`[worker] 算力结算失败: ${taskId}`, e as Error);
+      }
+
       // 4. 保存作品记录（作品展示模块数据源）
       try {
         await saveWorkRecord({
@@ -183,9 +191,21 @@ const worker = new Worker(
     } catch (e) {
       logger.warn(`[worker] 标记 dead_letter 失败: ${taskId}`, e as Error);
     }
+    // 释放算力预留（失败 → release，不扣减）
+    try {
+      await generationService.settlePower(String(userId), String(taskId), 'release');
+    } catch (e) {
+      logger.warn(`[worker] 释放预留失败: ${taskId}`, e as Error);
+    }
     throw new Error(errorMessage);
   },
-  { connection: getBullConnection(), concurrency: 4 }
+  {
+    connection: getBullConnection(),
+    concurrency: 4,
+    // 长任务（视频/3D 最长 120s）避免被 30s 默认 stalled 判定重复执行
+    stalledInterval: 130_000,
+    maxStalledCount: 1,
+  }
 );
 
 worker.on('failed', (job, error) =>

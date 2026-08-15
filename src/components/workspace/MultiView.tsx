@@ -35,10 +35,12 @@ export default function MultiView({ power, onDeductPower }: WorkspaceProps) {
     power,
     onDeductPower,
     onSuccess: (data) => {
-      const images = Array.isArray(data) ? data : [data];
-      if (images.length > 0) {
-        setResult(images);
-        addToHistory({ featureId: 'multiview', imageUrl: images[0] });
+      // 归一化结果：data 为 { imageUrl, images, modelUrl, ... }
+      const d = (data || {}) as { imageUrl?: string | null; images?: string[] };
+      const imageList = (Array.isArray(d.images) ? d.images : [d.imageUrl]).filter(Boolean) as string[];
+      if (imageList.length > 0) {
+        setResult(imageList);
+        addToHistory({ featureId: 'multiview', imageUrl: imageList[0] });
       }
     },
   });

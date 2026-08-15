@@ -8,6 +8,7 @@ import { SingleImageUploadBox } from '@/components/ui/SingleImageUploadBox';
 import { getTaskCost } from '@/lib/power';
 import { cn } from '@/lib/utils';
 import { callApi } from '@/lib/api-service';
+import { getAuthHeader } from '@/lib/auth-client';
 import { WorkspaceProps } from '@/constants/workspace';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -81,6 +82,11 @@ const aspectRatios: AspectRatioOption[] = [
   { value: '21:9', label: '21:9', desc: '超宽' },
 ];
 
+// 兼容旧长 id → 短 id（与 src/lib/api-service.ts#featureIdAliases 保持一致）
+const legacyFeatureAliases: Record<string, string> = {
+  'remove-watermark': 'watermark',
+};
+
 export function ImageWorkspace({ power, onDeductPower, config }: ImageWorkspaceProps) {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [resolution, setResolution] = useState('2K');
@@ -119,7 +125,8 @@ export function ImageWorkspace({ power, onDeductPower, config }: ImageWorkspaceP
   const removeFromHistory = (id: string) => {
     setHistory(prev => prev.filter(h => h.id !== id));
   };
-  const cost = getTaskCost(config.featureId);
+  const featureId = legacyFeatureAliases[config.featureId] || config.featureId;
+  const cost = getTaskCost(featureId);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -143,22 +150,84 @@ export function ImageWorkspace({ power, onDeductPower, config }: ImageWorkspaceP
         ratio,
       });
       
-      const response = await callApi<string>(config.featureId, {
+      // 使用统一 API 调用服务（异步任务模式：返回 taskId，轮询 /api/tasks/{taskId}）
+      const response = await callApi<any>(featureId, {
         params: apiParams,
       });
-      
+
+      const respData = response.data as { taskId?: string; statusUrl?: string } | undefined;
+
+      // 异步任务模式：拿 taskId 轮询直至 completed
+      if (response.success && respData?.taskId) {
+        const pollTaskId = String(respData.taskId);
+        setTaskId(pollTaskId);
+        const statusUrl = String(respData.statusUrl || `/api/tasks/${pollTaskId}`);
+        const POLL_INTERVAL = 2000;
+        const MAX_POLLS = 300; // 10 分钟上限
+
+        for (let i = 0; i < MAX_POLLS; i++) {
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+          try {
+            const pollRes = await fetch(statusUrl, { headers: { ...getAuthHeader() } });
+            if (!pollRes.ok) {
+              if (pollRes.status >= 500) continue; // 5xx 重试
+              throw new Error(`轮询任务失败: HTTP ${pollRes.status}`);
+            }
+            const pollJson = await pollRes.json();
+            const taskData = pollJson?.data ?? pollJson;
+            const status = String(taskData?.status ?? '');
+
+            if (status === 'completed') {
+              // 按归一化契约解包 output：图片结果用 imageUrl（含 artifacts 兜底）
+              const output = (taskData?.output as Record<string, any>) ?? {};
+              const artifacts = Array.isArray(output.artifacts) ? output.artifacts : [];
+              const images = artifacts.map((a: any) => a?.url).filter(Boolean) as string[];
+              const imageUrl = (output.imageUrl as string) ?? images[0] ?? null;
+              if (!imageUrl) throw new Error('任务完成但未返回图片');
+
+              setResult(imageUrl);
+              const newItem: HistoryItem = {
+                id: Date.now().toString(),
+                imageUrl,
+                resolution,
+                ratio,
+                timestamp: new Date(),
+              };
+              setHistory((prev) => [newItem, ...prev]);
+
+              onDeductPower(cost, config.deductReason);
+              return;
+            }
+            if (status === 'failed' || status === 'dead_letter') {
+              throw new Error(String(taskData?.error ?? '任务失败'));
+            }
+          } catch (pollErr) {
+            if (i > 5) throw pollErr; // 前 5 次轮询容错
+          }
+        }
+        throw new Error('任务超时(10分钟未完成)');
+      }
+
+      // 同步模式兜底（老接口直接返回结果 URL 或 { imageUrl, artifacts }）
       if (response.success && response.data) {
-        setResult(response.data);
-        
+        const data = response.data as any;
+        const imageUrl = typeof data === 'string'
+          ? data
+          : (data?.imageUrl
+              || (Array.isArray(data?.artifacts) ? data.artifacts.map((a: any) => a?.url).filter(Boolean)[0] : null)
+              || null);
+        if (!imageUrl) { setError('生成失败：未返回图片'); return; }
+
+        setResult(imageUrl);
         const newItem: HistoryItem = {
           id: Date.now().toString(),
-          imageUrl: response.data,
+          imageUrl,
           resolution,
           ratio,
           timestamp: new Date(),
         };
         setHistory((prev) => [newItem, ...prev]);
-        
+
         onDeductPower(cost, config.deductReason);
       } else {
         setError(response.error || '生成失败');

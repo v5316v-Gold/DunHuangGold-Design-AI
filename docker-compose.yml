@@ -62,8 +62,11 @@ services:
 
   # ===== Web (Next.js) =====
   web:
-    # 用本地已构建镜像：dunhuang-web:v1.18（本地构建）
-    image: dunhuang-web:v1.18
+    # 本地构建（docker compose up -d --build）；镜像 tag 与构建产物绑定
+    image: dunhuang-web:v1.19
+    build:
+      context: .
+      dockerfile: Dockerfile
     pull_policy: never
     container_name: dunhuang-web
     restart: unless-stopped
@@ -121,8 +124,11 @@ services:
 
   # ===== Worker (BullMQ consumer) =====
   worker:
-    # 用本地已构建镜像：dunhuang-worker:v1.17（本地构建）
-    image: dunhuang-worker:v1.17
+    # 本地构建（docker compose up -d --build）
+    image: dunhuang-worker:v1.18
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
     pull_policy: never
     container_name: dunhuang-worker
     restart: unless-stopped

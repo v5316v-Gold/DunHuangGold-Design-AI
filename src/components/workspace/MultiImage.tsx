@@ -33,29 +33,31 @@ export default function MultiImage({ power, onDeductPower }: WorkspaceProps) {
   const [zoom, setZoom] = useState(1);
   const [blendImages, setBlendImages] = useState<string[]>([]);
 
-  const cost = getTaskCost('multi-image');
+  const cost = getTaskCost('blend');
 
   // 图片上传 Hook（多图模式）
   const { uploadedImages, isDragging, error: uploadError, handleDrop, handleDragOver, handleDragLeave, handleFileSelect, clear: clearImages, processFile } = useImageUpload({ maxSizeMB: 10, multiple: true });
 
   // AI 生成 Hook
   const { isGenerating, progress, error, generate, setError } = useAiGeneration({
-    featureId: 'multi-image',
+    featureId: 'blend',
     cost,
     power,
     onDeductPower,
     onSuccess: (data) => {
-      const images = Array.isArray(data) ? data : [data];
-      if (images.length > 0 && images[0]) {
-        setResult(images[0]);
-        addToHistory({ featureId: 'multi-image', imageUrl: images[0], prompt: prompt || '多图融合' });
+      // 归一化结果：data 为 { imageUrl, images, modelUrl, ... }
+      const d = (data || {}) as { imageUrl?: string | null; images?: string[] };
+      const imageList = (Array.isArray(d.images) ? d.images : [d.imageUrl]).filter(Boolean) as string[];
+      if (imageList.length > 0 && imageList[0]) {
+        setResult(imageList[0]);
+        addToHistory({ featureId: 'blend', imageUrl: imageList[0], prompt: prompt || '多图融合' });
       }
     },
   });
 
   // 历史记录 Hook
   const { history, addToHistory, clearHistory, removeFromHistory } = useGenerationHistory({
-    featureId: 'multi-image',
+    featureId: 'blend',
     limit: 20,
   });
 

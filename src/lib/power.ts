@@ -90,32 +90,14 @@ export function usePower() {
     }
 
     if (isAuthenticated) {
-      // 乐观扣减：立即更新本地状态
-      const newPower = currentPower - amount;
-      setLocalPower(newPower);
-
-      try {
-        const data = await apiClient.post(API_ROUTES.power, { action: 'deduct', amount, reason });
-        if (data.success) {
-          refreshUser?.();
-          console.log(`[power] 扣减成功: -${amount} (${reason})`);
-          return (data.data as { power?: number }).power;
-        } else {
-          // API 返回错误，刷新同步状态
-          console.error('[power] 扣减失败:', data.error);
-          refreshUser?.();
-          return newPower;
-        }
-      } catch (error) {
-        // API 请求失败，回滚本地状态并刷新
-        console.error('[power] 扣减请求失败:', error);
-        setLocalPower(currentPower);
-        refreshUser?.();
-        throw error;
-      }
+      // 后端由 worker 在任务完成时权威结算算力（consume），前端不再 POST /api/power，
+      // 只需拉取最新余额避免双扣费
+      refreshUser?.();
+      console.log(`[power] 任务已完成，由后端结算算力: -${amount} (${reason})`);
+      return undefined;
     }
 
-    // 未登录，走本地扣减
+    // 未登录，走本地扣减（原逻辑不变）
     setLocalPower((prev) => {
       const newPower = prev - amount;
       localStorage.setItem(POWER_KEY, String(newPower));

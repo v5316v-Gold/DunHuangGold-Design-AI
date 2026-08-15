@@ -38,10 +38,12 @@ export default function SketchRealistic({ power, onDeductPower }: WorkspaceProps
     power,
     onDeductPower,
     onSuccess: (data) => {
-      const images = Array.isArray(data) ? data : [data];
-      if (images.length > 0 && images[0]) {
-        setResult(images[0]);
-        addToHistory({ featureId: 'sketch', imageUrl: images[0] });
+      // 归一化结果：data 为 { imageUrl, images, modelUrl, ... }
+      const d = (data || {}) as { imageUrl?: string | null; images?: string[] };
+      const imageList = (Array.isArray(d.images) ? d.images : [d.imageUrl]).filter(Boolean) as string[];
+      if (imageList.length > 0 && imageList[0]) {
+        setResult(imageList[0]);
+        addToHistory({ featureId: 'sketch', imageUrl: imageList[0] });
       }
     },
   });

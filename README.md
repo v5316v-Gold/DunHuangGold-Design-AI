@@ -22,7 +22,7 @@
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │ L1 · Presentation  Next.js 15.2.3 App Router                  │
-│   ├─ /api (48 production routes)                               │
+│   ├─ /api (69 routes, 含 31 个后台管理端点)                    │
 │   ├─ /admin (后台 UI:模型中心 + 系统健康 + 工作流配置)         │
 │   └─ /workspace (前台 17 功能面板)                             │
 ├────────────────────────────────────────────────────────────────┤
@@ -177,7 +177,7 @@ NODE_ENV=production ./node_modules/.bin/next start -p 5000 -H 0.0.0.0
 
 ```
 src/
-├─ app/                        # Next.js 路由(48 production routes)
+├─ app/                        # Next.js 路由(69 routes, 含 31 个后台管理端点)
 │  ├─ api/                     # RESTful API
 │  │  ├─ ai/generate-async/    # 主入口(异步任务)
 │  │  ├─ ai/generate/          # 同步入口(兼容)
@@ -202,7 +202,7 @@ src/
 │  └─ feature-registry.ts      # feature_code → 组件 静态映射(唯一真源)
 ├─ components/                 # UI 组件
 ├─ worker/src/                 # BullMQ Worker
-└─ test/                       # 测试(63 个用例)
+└─ test/                       # 测试(270 个用例)
 ```
 
 ---
@@ -219,6 +219,9 @@ src/
 | **Phase 9.22** | **Hardening: 10 项加固 + Lint 0 警** | c617ae3 | **✅ PASS** |
 | **Phase 9.23** | **Workflow Asset Closure: 8 项发布门禁 + 模型反向引用** | ed9eeb7 | **✅ PASS** |
 | **Phase 9.24** | **Dead Code Cleanup: 393→295 文件, -9K 行** | 9ca79ac | **✅ PASS** |
+| **Phase 10** | **生产级修复：算力结算闭环 / 自助充值封堵 / 状态机修复 / 后台 31 端点补全 / SSRF 加固 / 前台结果契约** | 本次提交 | **✅ PASS** |
+
+> 详细修复清单见 [`docs/PRODUCTION-FIXES-2026-08-15.md`](docs/PRODUCTION-FIXES-2026-08-15.md)
 
 ---
 
@@ -290,7 +293,7 @@ pnpm lint
 #   全部 fail-fast,无 continue-on-error
 ```
 
-**当前状态**:tsc 0 错 / lint 0 警 / **63/63 测试通过**
+**当前状态**:`tsc --noEmit` 0 错 / `next build` 成功 / **node 套件 230+ 用例通过**（270 个用例中，排除 jsdom / 真实 API / e2e 三类，见 `vitest.node.config.ts`）
 
 ---
 
@@ -365,4 +368,4 @@ Proprietary · 内部使用
 
 ---
 
-**主分支**:`main` @ `9ca79ac` · **最新 commit**:Phase 9.24 死代码清理 · **GATE 三连 PASS**
+**主分支**:`main` · **最新 commit**:Phase 10 生产级修复（算力结算闭环 / 安全加固 / 后台补全）· **tsc 0 错 / build 通过 / 实机验证通过**

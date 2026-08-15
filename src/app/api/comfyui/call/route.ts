@@ -36,6 +36,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callComfyUI, checkComfyUIHealth } from '@/lib/comfyui-call-service';
 import { createLogger } from '@/lib/error-handler';
+import { requireAuth } from '@/lib/auth';
+import { unauthorized } from '@/lib/api-response';
 import { randomUUID } from 'crypto';
 
 // Phase 3.6：统一 requestId 注入（envelope 可追踪性）
@@ -54,11 +56,11 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    // 1. 验证登录 (可选，公开接口可以跳过)
-    // const payload = await getCurrentUser(request);
-    // if (!payload) {
-    //   return NextResponse.json({ requestId: reqId(), success: false, error: '请先登录' }, { status: 401 });
-    // }
+    // 1. 验证登录（路由级鉴权，未登录返回 401）
+    const user = await requireAuth(request);
+    if (!user) {
+      return NextResponse.json({ requestId: reqId(), success: false, error: '请先登录' }, { status: 401 });
+    }
 
     // 2. 解析请求
     const body = await request.json();
@@ -129,6 +131,12 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    // 路由级鉴权：健康检查同样要求登录
+    const user = await requireAuth(request);
+    if (!user) {
+      return NextResponse.json({ requestId: reqId(), success: false, error: '请先登录' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const connectionId = searchParams.get('connectionId') || undefined;
 

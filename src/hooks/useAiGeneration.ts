@@ -287,8 +287,20 @@ export function useAiGeneration({
                 setProgress(100);
                 onDeductPower(cost, deductReason);
                 if (taskIdRef.current) completeTask(taskIdRef.current, taskData);
-                onSuccess?.(taskData);
-                return taskData;
+                // 归一化结果契约：不要直接把整个 taskData 交给面板，
+                // 而是解包 worker 写入的 output，得到 images/imageUrl/modelUrl/videoUrl
+                const output = (taskData?.output as Record<string, any>) ?? {};
+                const artifacts = Array.isArray(output.artifacts) ? output.artifacts : [];
+                const images = artifacts.map(a => a?.url).filter(Boolean) as string[];
+                const result = {
+                  images,
+                  imageUrl: (output.imageUrl as string) ?? images[0] ?? null,
+                  modelUrl: (output.modelUrl as string) ?? artifacts.find(a => String(a?.mime || '').includes('glb') || String(a?.url || '').includes('.glb'))?.url ?? null,
+                  videoUrl: (output.videoUrl as string) ?? null,
+                  raw: taskData,
+                };
+                onSuccess?.(result);
+                return result;
               }
               if (status === 'failed' || status === 'dead_letter') {
                 const errMsg = String(taskData?.error ?? '任务失败');

@@ -42,7 +42,9 @@ export const ALLOWED_TRANSITIONS: Record<TaskStatusKind, TaskStatusKind[]> = {
   pending: ['processing', 'cancelled', 'failed'],
   // Phase 9.26 · processing→processing 幂等（worker 重启后遗留 processing 任务可重入）
   // 否则：任务状态卡 processing → worker 反复处理被拒 → BullMQ stalled 死循环 → CPU 100%
-  processing: ['processing', 'completed', 'failed', 'cancelled'],
+  // processing → dead_letter 必须允许：worker 最终失败时任务仍停在 processing，
+  // 若不允许该流转，markDeadLetter 会被拒绝 → 任务永远卡 processing（CPU/状态泄漏）
+  processing: ['processing', 'completed', 'failed', 'dead_letter', 'cancelled'],
   completed: [],
   failed: ['processing', 'pending', 'dead_letter', 'cancelled'],
   dead_letter: ['pending', 'cancelled'],  // 允许人工重试
