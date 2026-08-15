@@ -93,12 +93,56 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
+// ==================== 写操作统一限流（Sprint 1 P0-1） ====================
+// 说明：middleware 是 edge runtime，不可 import 依赖 Redis 的 rate-limit.ts。
+// 这里用内存 Map（单实例）做第一道防线，覆盖所有写操作（POST/PUT/PATCH/DELETE），
+// 未来新增路由自动受保护，无需逐个 route 手动加限流。
+// 更细粒度的限流（如 login 的 AUTH_LIMIT=10/5min）仍在 route 层单独处理。
+
+const WRITE_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000; // 5 分钟窗口
+const WRITE_RATE_LIMIT_MAX = 30; // 每窗口最多 30 次写操作
+const WRITE_RATE_LIMIT_STORE = new Map<string, { count: number; resetAt: number }>();
+
+function checkWriteRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = WRITE_RATE_LIMIT_STORE.get(ip);
+  if (!record || record.resetAt < now) {
+    WRITE_RATE_LIMIT_STORE.set(ip, { count: 1, resetAt: now + WRITE_RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (record.count >= WRITE_RATE_LIMIT_MAX) {
+    return false;
+  }
+  record.count += 1;
+  return true;
+}
+
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  const realIp = request.headers.get('x-real-ip');
+  if (realIp) return realIp.trim();
+  return '127.0.0.1';
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 公开路径放行
+  // 公开路径放行（login/register/health 等由 route 层细粒度限流）
   if (isPublicPath(pathname)) {
     return NextResponse.next();
+  }
+
+  // Sprint 1 P0-1 · 写操作统一限流（防暴力刷接口）
+  const method = request.method.toUpperCase();
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+    const ip = getClientIp(request);
+    if (!checkWriteRateLimit(ip)) {
+      return NextResponse.json(
+        { success: false, error: '请求过于频繁，请稍后再试', code: 'RATE_LIMITED' },
+        { status: 429 }
+      );
+    }
   }
 
   // 静态资源已在 matcher 中排除,这里只处理业务路由

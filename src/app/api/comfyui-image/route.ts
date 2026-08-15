@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/error-handler';
 import { requireAuth } from '@/lib/auth';
 import { unauthorized, badRequest, forbidden, notFound, internalError } from '@/lib/api-response';
-import * as fs from 'fs';
+import { promises as fsp } from 'fs';
 import * as path from 'path';
 
 const logger = createLogger('comfyui-image');
@@ -48,14 +48,16 @@ export async function GET(request: NextRequest) {
       return forbidden('非法路径');
     }
 
-    // 检查文件是否存在
-    if (!fs.existsSync(filePath)) {
+    // 检查文件是否存在（异步）
+    try {
+      await fsp.access(filePath);
+    } catch {
       logger.error(`[comfyui-image] 文件不存在: ${filePath}`);
       return notFound('文件不存在');
     }
 
-    // 读取文件
-    const fileBuffer = fs.readFileSync(filePath);
+    // 读取文件（异步）
+    const fileBuffer = await fsp.readFile(filePath);
     const ext = path.extname(filename).toLowerCase();
     
     // 根据扩展名确定内容类型

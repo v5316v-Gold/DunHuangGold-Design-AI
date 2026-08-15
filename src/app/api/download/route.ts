@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { existsSync } from 'fs';
-import { readFileSync, statSync } from 'fs';
+import { promises as fsp } from 'fs';
 import path from 'path';
 import { UPLOAD_DIR, FILE_TYPE_DIRS } from '@/lib/storage-config';
 import { requireAuth } from '@/lib/auth';
@@ -45,12 +44,17 @@ export async function GET(request: NextRequest) {
 
     const filepath = path.join(UPLOAD_DIR, type, filename);
 
-    if (!existsSync(filepath)) {
+    // 异步读取 + 检查文件
+    let buffer: ArrayBuffer;
+    let size: number;
+    try {
+      const buf = await fsp.readFile(filepath);
+      buffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+      const stat = await fsp.stat(filepath);
+      size = stat.size;
+    } catch {
       return NextResponse.json({ requestId: reqId(), success: false, error: '文件不存在' }, { status: 404 });
     }
-
-    const buffer = readFileSync(filepath);
-    const stat = statSync(filepath);
 
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const contentTypes: Record<string, string> = {
@@ -64,7 +68,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': contentTypes[ext] || 'application/octet-stream',
-        'Content-Length': String(stat.size),
+        'Content-Length': String(size),
         'Cache-Control': 'public, max-age=31536000',
       },
     });

@@ -9,6 +9,12 @@ import { comfyuiConfigs, comfyuiConnections } from './shared/schema';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+// Sprint 1 P0-3 · 生产环境禁用内存回退
+// 安全理由：本文件硬编码默认 admin 账号，若 production 下 DB 不可用会 fallback 到此，
+// 导致任何人可用默认密码登录 → 严重安全隐患。
+// 决策：production 下内存回退不初始化默认账号，users 为空，拒绝登录。
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 // 内存存储
 interface MemoryStore {
   users: Array<{
@@ -54,11 +60,11 @@ interface MemoryStore {
 }
 
 const store: MemoryStore = {
-  users: [{
+  users: IS_PRODUCTION ? [] : [{
     id: 'admin-default',
     email: 'admin@dunhuang.com',
     nickname: '管理员',
-    passwordHash: '$2b$10$zYYqAxQnedGk67d/3LadZuRgk5bYVhDD77ROp/Z5HWv9H6eoxZqoi', // admin123
+    passwordHash: '$2b$10$zYYqAxQnedGk67d/3LadZuRgk5bYVhDD77ROp/Z5HWv9H6eoxZqoi', // admin123（仅 dev/test）
     role: 'admin',
     power: 999999,
     createdAt: new Date(),

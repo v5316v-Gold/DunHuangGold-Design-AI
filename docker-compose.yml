@@ -62,8 +62,8 @@ services:
 
   # ===== Web (Next.js) =====
   web:
-    # 用本地已构建镜像：dunhuang-web:v1.15（本地构建）
-    image: dunhuang-web:v1.15
+    # 用本地已构建镜像：dunhuang-web:v1.18（本地构建）
+    image: dunhuang-web:v1.18
     pull_policy: never
     container_name: dunhuang-web
     restart: unless-stopped
