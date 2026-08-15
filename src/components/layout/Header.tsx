@@ -72,12 +72,19 @@ export default function Header() {
         <div className="flex items-center gap-6 md:gap-10">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            {/* Logo 图标 - 敦煌风格 */}
+            {/* Logo 图标 - 真实图片 */}
             <div className="relative">
-              <div 
-                className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--gold)] via-[var(--gold-bright)] to-[var(--gold-hover)] flex items-center justify-center shadow-[0_4px_16px_rgba(212,175,55,0.3)] group-hover:shadow-[0_4px_24px_rgba(212,175,55,0.5)] transition-all duration-300"
+              <div
+                className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-[var(--gold)] via-[var(--gold-bright)] to-[var(--gold-hover)] flex items-center justify-center shadow-[0_4px_16px_rgba(212,175,55,0.3)] group-hover:shadow-[0_4px_24px_rgba(212,175,55,0.5)] transition-all duration-300"
               >
-                <span className="text-black font-bold text-lg" style={{ fontFamily: 'serif' }}>敦</span>
+                <Image
+                  src="/logo.png"
+                  alt="敦煌金AI设计平台"
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover"
+                  unoptimized
+                />
               </div>
               {/* 图标光晕 */}
               <div className="absolute inset-0 rounded-xl bg-[var(--gold)] opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-300" />

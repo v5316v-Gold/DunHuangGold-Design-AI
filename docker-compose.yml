@@ -62,8 +62,8 @@ services:
 
   # ===== Web (Next.js) =====
   web:
-    # 用本地已构建镜像：dunhuang-web:v1.6（本地构建）
-    image: dunhuang-web:v1.6
+    # 用本地已构建镜像：dunhuang-web:v1.7（本地构建）
+    image: dunhuang-web:v1.7
     pull_policy: never
     container_name: dunhuang-web
     restart: unless-stopped
@@ -119,8 +119,8 @@ services:
 
   # ===== Worker (BullMQ consumer) =====
   worker:
-    # 用本地已构建镜像：dunhuang-worker:v1.6（本地构建）
-    image: dunhuang-worker:v1.6
+    # 用本地已构建镜像：dunhuang-worker:v1.7（本地构建）
+    image: dunhuang-worker:v1.7
     pull_policy: never
     container_name: dunhuang-worker
     restart: unless-stopped
