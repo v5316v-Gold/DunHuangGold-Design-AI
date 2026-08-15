@@ -31,7 +31,6 @@ import { cn } from '@/lib/utils';
 import { useFeatures, type PublicFeature } from '@/lib/use-features';
 import { isFeatureRegistered } from '@/lib/feature-registry';
 import { preloadFeatureCosts } from '@/lib/feature-costs';
-import NextImage from 'next/image';
 
 // 把 feature_id 映射到 lucide 图标（小写 key）
 // 之前错误地写为 ES6 shorthand: { Mountain } -> key="Mountain"
@@ -281,6 +280,16 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
         <div className="flex items-center justify-between px-4 py-4 min-h-[60px] relative">
           {/* 左侧金色装饰 */}
           <div className="absolute left-0 top-4 bottom-4 w-[1px] bg-gradient-to-b from-transparent via-[var(--gold-border)] to-transparent" />
+
+          {isExpanded && (
+            <div className="flex items-center gap-2 animate-fade-in">
+              {/* 渐变短线 + COMMAND（Logo 图已删除） */}
+              <div className="w-8 h-[2px] bg-gradient-to-r from-[var(--gold)] to-transparent rounded-full" />
+              <span className="text-[10px] font-bold text-[var(--text-dim)] tracking-[3px] uppercase">
+                COMMAND
+              </span>
+            </div>
+          )}
 
           <button
             onClick={() => {
