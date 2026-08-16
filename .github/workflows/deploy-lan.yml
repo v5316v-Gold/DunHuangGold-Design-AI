@@ -1,0 +1,183 @@
+# 敦煌金 AI · 局域网部署工作流 (W4)
+#
+# 用法:
+#   1) 在 GitHub 仓库 Settings → Secrets 添加:
+#        LAN_SSH_KEY     - private key (以 BEGIN OPENSSH PRIVATE KEY 开头)
+#        LAN_HOST        - 例如 192.168.1.10
+#        LAN_USER        - 例如 deploy
+#        LAN_PORT        - 22
+#        LAN_DEPLOY_PATH - 例如 /opt/dunhuang
+#        JWT_SECRET_PRODUCTION
+#        API_KEY_ENCRYPTION_KEY_PRODUCTION  (openssl rand -hex 32)
+#   2) push 到 main 触发(也可 manual dispatch)
+#   3) 工作流会:
+#        - 跑 install/lint/typecheck/test/migration/build(复用 ci.yml 步骤)
+#        - rsync 到 LAN 主机并执行 ./deploy-lan.sh
+#        - 暴露 /healthz 的烟雾测试
+
+name: Deploy to LAN
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default latest)'
+        required: false
+        default: 'latest'
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'docker-compose*.yml'
+      - 'Dockerfile*'
+      - 'package.json'
+
+concurrency:
+  group: deploy-lan-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+  API_KEY_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  JWT_SECRET: ci-test-jwt-secret-only-for-unit-tests-not-production
+
+jobs:
+  # ===== 阶段 1: 质量门 =====
+  qa:
+    name: 🧪 Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec eslint src/ --max-warnings 0
+      - run: pnpm exec tsc --noEmit
+      - run: NODE_ENV=development pnpm run test:node
+      - run: pnpm run build
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            .next/standalone
+            .next/static
+            public
+            scripts
+            src/db/migrations
+          retention-days: 1
+
+  # ===== 阶段 2: 部署到 LAN =====
+  deploy:
+    name: 🚀 Deploy to LAN
+    needs: qa
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: lan-prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with: { name: build-output }
+
+      - name: 准备 deploy 目录
+        run: |
+          mkdir -p _deploy
+          rsync -a --delete \
+            ./nginx.conf ./Dockerfile ./Dockerfile.worker \
+            ./docker-compose.yml ./deploy \
+            ./scripts ./package.json ./pnpm-lock.yaml ./next.config.ts \
+            ./_deploy/
+
+      - name: 复制构建产物
+        run: |
+          mkdir -p _deploy/build
+          cp -r .next _deploy/build/
+          cp -r public _deploy/build/
+
+      - name: 上传至 LAN 主机
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.LAN_HOST }}
+          username: ${{ secrets.LAN_USER }}
+          port: ${{ secrets.LAN_PORT || 22 }}
+          key: ${{ secrets.LAN_SSH_KEY }}
+          source: "_deploy/*"
+          target: ${{ secrets.LAN_DEPLOY_PATH }}
+          strip_components: 0
+
+      - name: 远端部署
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LAN_HOST }}
+          username: ${{ secrets.LAN_USER }}
+          port: ${{ secrets.LAN_PORT || 22 }}
+          key: ${{ secrets.LAN_SSH_KEY }}
+          command: |
+            set -e
+            cd ${{ secrets.LAN_DEPLOY_PATH }}
+
+            # 注入生产 secrets 到 .env
+            cat > .env <<EOF
+            DATABASE_URL=postgresql://dunhuang1:dunhuang2026@postgres:5432/dunhuang
+            REDIS_URL=redis://redis:6379
+            JWT_SECRET=${{ secrets.JWT_SECRET_PRODUCTION }}
+            API_KEY_ENCRYPTION_KEY=${{ secrets.API_KEY_ENCRYPTION_KEY_PRODUCTION }}
+            MINIMAX_API_KEY=${{ secrets.MINIMAX_API_KEY || '' }}
+            QWEN_API_KEY=${{ secrets.QWEN_API_KEY || '' }}
+            ZHIPU_API_KEY=${{ secrets.ZHIPU_API_KEY || '' }}
+            MESHY_API_KEY=${{ secrets.MESHY_API_KEY || '' }}
+            NODE_ENV=production
+            PORT=5000
+            COMFYUI_HOST=http://host.docker.internal:8188
+            ALLOWED_ORIGIN=https://${{ secrets.LAN_HOST }}:443
+            EOF
+            chmod 600 .env
+
+            # 自签证书(首次部署)
+            if [ ! -f ssl/server.crt ]; then
+              bash deploy/gen-selfsigned.sh --host=${{ secrets.LAN_HOST }} --days=825
+            fi
+
+            # 升级 web / worker / postgres / redis / nginx
+            docker compose \
+              -f docker-compose.yml \
+              -f deploy/nginx-docker-compose.yml \
+              up -d --build web worker
+
+            # 等 web healthy
+            for i in $(seq 1 30); do
+              if docker exec dunhuang-web wget -q --spider http://127.0.0.1:5000/api/ping; then
+                echo "✅ web healthy"
+                break
+              fi
+              sleep 5
+            done
+
+            # 启动 nginx
+            docker compose -f docker-compose.yml -f deploy/nginx-docker-compose.yml up -d nginx
+
+            # 启动备份 cron
+            docker compose -f deploy/cron/docker-compose.backup.yml up -d || true
+
+            # 烟雾测试
+            sleep 10
+            if curl -sk https://localhost/healthz | grep -q "ok"; then
+              echo "✅ /healthz reachable"
+            else
+              echo "❌ /healthz 没回 ok,需要排查"
+              exit 1
+            fi
+
+      - name: 部署结果
+        if: always()
+        run: |
+          echo "::notice::部署 ${{ job.status }} — ${{ secrets.LAN_HOST }}"

@@ -97,6 +97,69 @@ async function connectSSEProgress(
   }
 }
 
+/**
+ * W2·尝试通过 EventSource 订阅 /api/tasks/[id]/stream。
+ * 返回 true = SSE 已完整推送完成事件（success/failed/cancelled），false = 中途断流或被取消，回退轮询。
+ */
+async function tryTaskSse(
+  taskId: string,
+  options: {
+    onProgress: (p: number) => void;
+    onError: (msg: string) => void;
+    onDone: (taskData: Record<string, unknown>) => void;
+    signal: AbortSignal;
+  }
+): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    if (typeof window === 'undefined') return resolve(false);
+    const url = `/api/tasks/${encodeURIComponent(taskId)}/stream`;
+    let es: EventSource | null = null;
+    let resolved = false;
+    const done = (ok: boolean) => {
+      if (resolved) return;
+      resolved = true;
+      if (es) es.close();
+      resolve(ok);
+    };
+    try {
+      es = new EventSource(url, { withCredentials: true } as EventSourceInit & { withCredentials?: boolean });
+      es.addEventListener('snapshot', (ev: MessageEvent) => {
+        try {
+          const data = JSON.parse(ev.data) as { status?: string; progress?: number };
+          if (typeof data.progress === 'number') options.onProgress(data.progress);
+        } catch { /* ignore */ }
+      });
+      es.addEventListener('progress', (ev: MessageEvent) => {
+        try {
+          const data = JSON.parse(ev.data) as { status?: string; progress?: number; error?: string; output?: Record<string, unknown> };
+          if (typeof data.progress === 'number') options.onProgress(data.progress);
+          if (data.status === 'completed') {
+            options.onDone(data as unknown as Record<string, unknown>);
+            done(true);
+          } else if (data.status === 'failed' || data.status === 'dead_letter') {
+            options.onError(String(data.error || '任务失败'));
+            done(true);
+          } else if (data.status === 'cancelled') {
+            options.onError('任务已取消');
+            done(true);
+          }
+        } catch { /* ignore */ }
+      });
+      es.onerror = () => {
+        // SSE 中断 → 回退轮询，不视为失败
+        done(false);
+      };
+      options.signal.addEventListener('abort', () => done(false));
+    } catch {
+      done(false);
+    }
+    // 兜底:5s 内没收到 snapshot 也视为不可用,回退轮询
+    setTimeout(() => {
+      if (!resolved) done(false);
+    }, 5_000);
+  });
+}
+
 interface UseAiGenerationOptions {
   featureId: string;
   cost: number;
@@ -249,7 +312,7 @@ export function useAiGeneration({
         }
 
         // Phase 9.26 · async 任务模式 (/api/ai/generate-async 返回 taskId + statusUrl)
-        //        轮询 /api/tasks/[id] 直至 completed / failed
+        //        优先采用 W2 SSE 流(/api/tasks/[id]/stream),失败回退到 2s 轮询
         const respData = (response as { data?: Record<string, unknown> }).data;
         if (response.success && respData?.taskId) {
           const taskId = String(respData.taskId);
@@ -259,6 +322,39 @@ export function useAiGeneration({
 
           if (taskIdRef.current) {
             updateTask(taskIdRef.current, { taskId });
+          }
+
+          // W2 · 优先尝试 SSE 流（断流自动回退轮询，不阻塞 UI）
+          const sseHandled = await tryTaskSse(taskId, {
+            onProgress: (p) => {
+              setProgress(p);
+              if (taskIdRef.current) updateTask(taskIdRef.current, { progress: p });
+            },
+            onError: (msg) => {
+              setError(msg);
+              onError?.(msg);
+            },
+            onDone: (taskData) => {
+              setProgress(100);
+              onDeductPower(cost, deductReason);
+              if (taskIdRef.current) completeTask(taskIdRef.current, taskData);
+              const output = (taskData?.output as Record<string, any>) ?? {};
+              const artifacts = Array.isArray(output.artifacts) ? output.artifacts : [];
+              const images = artifacts.map(a => a?.url).filter(Boolean) as string[];
+              const result = {
+                images,
+                imageUrl: (output.imageUrl as string) ?? images[0] ?? null,
+                modelUrl: (output.modelUrl as string) ?? artifacts.find(a => String(a?.mime || '').includes('glb') || String(a?.url || '').includes('.glb'))?.url ?? null,
+                videoUrl: (output.videoUrl as string) ?? null,
+                raw: taskData,
+              };
+              onSuccess?.(result);
+            },
+            signal: abortControllerRef.current!.signal,
+          });
+          if (sseHandled) {
+            // SSE 已完成（成功 / 失败 / cancel），不再轮询
+            return null;
           }
 
           for (let i = 0; i < MAX_POLLS; i++) {

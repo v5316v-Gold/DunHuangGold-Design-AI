@@ -118,8 +118,9 @@ export default function GalleryPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  // 加载真实作品数据
+  // 加载真实作品数据(冷启动 + W2·3 秒轮询让 in-flight 任务完成后立即出现)
   useEffect(() => {
+    let cancelled = false;
     const fetchRealWorks = async () => {
       try {
         const authHeader = getAuthHeader();
@@ -127,20 +128,21 @@ export default function GalleryPage() {
           credentials: 'include',
           headers: { ...authHeader },
         });
-        if (res.ok) {
+        if (!cancelled && res.ok) {
           const json = await res.json();
           if (json.success && json.data?.length > 0) {
             const realImages = json.data
-              .filter((item: any) => item.image_url && FEATURE_TO_CATEGORY[item.type])
+              // W1·R2·兼容 snake_case / camelCase 两种字段
+              .filter((item: any) => (item.outputImageUrl || item.output_image_url) && (FEATURE_TO_CATEGORY[item.type] || item.featureCode || item.type))
               .map((item: any) => ({
                 id: String(item.id),
                 title: item.title || '无标题',
-                type: FEATURE_TO_CATEGORY[item.type] || item.type,
+                type: FEATURE_TO_CATEGORY[item.type] || item.featureCode || item.type,
                 prompt: item.prompt || '',
                 likes: typeof item.likes === 'number' ? item.likes : 0,
-                imageUrl: item.image_url,
-                videoUrl: item.video_url || null,
-                modelUrl: item.model_url || null,
+                imageUrl: item.outputImageUrl || item.output_image_url,
+                videoUrl: item.outputVideoUrl || item.output_video_url || null,
+                modelUrl: item.outputModelUrl || item.output_model_url || null,
               }));
             setImages(realImages);
           }
@@ -150,6 +152,11 @@ export default function GalleryPage() {
       }
     };
     fetchRealWorks();
+    const t = setInterval(fetchRealWorks, 3_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
   }, []);
 
   const filteredImages = images.filter((img) => {

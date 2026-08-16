@@ -27,6 +27,11 @@ export class HermesAgentExecutor implements Executor {
   }
 
   async isAvailable(): Promise<boolean> {
+    // W1·R2·feature flag: DIALOGUE_RUNTIME=cloud 让对话直接走 Minimax,
+    //   避免部署时缺 hermes CLI 导致对话全挂。
+    if ((process.env.DIALOGUE_RUNTIME || '').toLowerCase() === 'cloud') {
+      return false;
+    }
     // 简单健康检查：尝试 spawn hermes --version，失败不可用
     return new Promise((resolve) => {
       try {

@@ -39,7 +39,8 @@ export type TaskStatusKind =
  */
 export const ALLOWED_TRANSITIONS: Record<TaskStatusKind, TaskStatusKind[]> = {
   queued: ['pending', 'cancelled'],
-  pending: ['processing', 'cancelled', 'failed'],
+  // W1·R2 · pending → completed 允许（mock executor / 手工 reset 直 completed）
+  pending: ['processing', 'cancelled', 'failed', 'completed'],
   // Phase 9.26 · processing→processing 幂等（worker 重启后遗留 processing 任务可重入）
   // 否则：任务状态卡 processing → worker 反复处理被拒 → BullMQ stalled 死循环 → CPU 100%
   // processing → dead_letter 必须允许：worker 最终失败时任务仍停在 processing，
@@ -94,7 +95,8 @@ export async function updateProgress(
   if (!db) return;
   await db.update(tasks)
     .set({ progress: Math.min(100, Math.max(0, progress)) })
-    .where(eq(tasks.id, taskId));
+    .where(eq(tasks.id, taskId))
+    .execute();
 }
 
 /**
@@ -251,7 +253,23 @@ async function updateTaskState(
     setFields.completedAt = now;
   }
 
-  await db.update(tasks).set(setFields).where(eq(tasks.id, taskId));
+  await db.update(tasks).set(setFields).where(eq(tasks.id, taskId)).execute();
+
+  // W2·SSE 推送（state update 后发布到 Redis 频道）
+  try {
+    const { getRedis } = await import('@/lib/redis');
+    const redis = getRedis();
+    await redis.publish(
+      `task:${taskId}`,
+      JSON.stringify({
+        taskId,
+        ...update,
+        updatedAt: now.toISOString(),
+      })
+    );
+  } catch (e) {
+    logger.warn(`SSE pub failed: ${taskId}`, e as Error);
+  }
 }
 
 

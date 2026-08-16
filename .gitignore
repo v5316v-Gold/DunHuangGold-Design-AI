@@ -67,6 +67,9 @@ uploads/
 *.pem
 *.key
 
+# Generated self-signed certs (regenerate via deploy/gen-selfsigned.sh)
+ssl/
+
 # Dependency lock files (use pnpm-lock.yaml only)
 package-lock.json
 yarn.lock

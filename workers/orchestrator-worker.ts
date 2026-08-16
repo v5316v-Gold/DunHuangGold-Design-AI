@@ -1,4 +1,7 @@
 import { Worker } from 'bullmq';
+import { sql } from 'drizzle-orm';
+import { hostname } from 'os';
+import { randomUUID as rngUuid } from 'crypto';
 // Phase 4：worker 走新 PolicyOrchestrator（策略驱动：routing/retry/fallback + ExecutionPlan）
 // 旧 orchestrator（src/lib/orchestrator/feature-orchestrator）已冻结 deprecated
 import { policyOrchestrator } from '@/lib/ai/orchestration/policy-orchestrator';
@@ -16,6 +19,7 @@ import { createLogger } from '@/lib/error-handler';
 import { generationService } from '@/lib/ai/application/generation-service';
 import { db } from '@/db';
 import { works } from '@/db/schema';
+import { workerNodes } from '@/db/schema/_tables';
 
 const logger = createLogger('orchestrator-worker');
 
@@ -77,7 +81,7 @@ async function saveWorkRecord({
     powerCost: (output.cost as number) ?? 0,
     status: 'completed',
     isPublic: false,
-  });
+  }).execute();
 }
 
 // 队列名必须与 Producer（src/lib/queue/task-queue.ts 的 QUEUE_NAME）一致
@@ -221,6 +225,14 @@ worker.on('ready', () =>
 // 优雅关闭
 async function shutdown() {
   logger.info('[worker] 关闭中...');
+  stopHeartbeat();
+  try {
+    if (db) {
+      await db.execute(sql`DELETE FROM worker_nodes WHERE id = ${nodeId}`);
+    }
+  } catch {
+    // ignore
+  }
   await worker.close();
   process.exit(0);
 }
@@ -228,3 +240,74 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 logger.info(`[worker] orchestrator-worker 启动，队列: ${QUEUE_NAME}`);
+
+// ============================================================
+// W1 · Worker 心跳上报（注册 + 定时刷新）
+// ============================================================
+const nodeId = process.env.WORKER_NODE_ID || `worker-${hostname()}-${process.pid}-${rngUuid().slice(0, 6)}`;
+const nodeStartedAt = new Date();
+let heartbeatTimer: NodeJS.Timeout | null = null;
+
+async function registerHeartbeat(): Promise<void> {
+  if (!db) {
+    logger.warn('[worker] DB 不可用，跳过心跳注册（健康检查将无法识别本 worker）');
+    return;
+  }
+  try {
+    await db
+      .insert(workerNodes)
+      .values({
+        id: nodeId,
+        hostname: hostname(),
+        pid: process.pid,
+        queue: QUEUE_NAME,
+        pidStartedAt: nodeStartedAt,
+        lastHeartbeat: new Date(),
+        role: 'worker',
+        meta: {
+          cwd: process.cwd(),
+          node: process.version,
+          concurrency: 4,
+          env: process.env.NODE_ENV ?? 'development',
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: workerNodes.id,
+        set: {
+          lastHeartbeat: new Date(),
+          updatedAt: new Date(),
+          meta: {
+            cwd: process.cwd(),
+            node: process.version,
+            concurrency: 4,
+            env: process.env.NODE_ENV ?? 'development',
+          },
+        },
+      });
+    logger.info(`[worker] heartbeat up: ${nodeId}`);
+  } catch (e) {
+    logger.warn('[worker] heartbeat register failed', e as Error);
+  }
+}
+
+function startHeartbeat() {
+  if (heartbeatTimer) return;
+  // 立即注册一次,然后每 10s 续命
+  void registerHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    void registerHeartbeat();
+  }, 10_000);
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
+startHeartbeat();
+export { nodeId };
+

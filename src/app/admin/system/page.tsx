@@ -1,5 +1,6 @@
 'use client';
 import { apiClient, API_ROUTES } from '@/lib/api-client';
+import { ShieldAlert } from 'lucide-react';
 
 /**
  * 系统健康面板 (Admin)
@@ -52,6 +53,24 @@ interface SystemHealthReport {
   uptime: number;
   version: string;
   checks: Record<string, SystemCheckResult>;
+}
+
+// W3·告警聚合
+interface AlertsSummary {
+  critical: number;
+  warn: number;
+  info: number;
+  failedTasks: number;
+  deadLetterTasks: number;
+  comfyuiErrors: number;
+  auditEvents: number;
+}
+interface AlertsData {
+  summary: AlertsSummary;
+  groups: Array<{ id: string; severity: 'critical' | 'warn' | 'info'; title: string; count: number; lastAt: string; sample?: string }>;
+  recent: Array<{ id: string; severity: 'critical' | 'warn' | 'info'; source: string; title: string; detail: string; at: string }>;
+  generatedAt: string;
+  windowHours: number;
 }
 
 // ==================== 静态元数据 ====================
@@ -122,6 +141,7 @@ function formatLatency(ms?: number): string {
 
 export default function SystemHealthPage() {
   const [report, setReport] = useState<SystemHealthReport | null>(null);
+  const [alerts, setAlerts] = useState<AlertsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +161,15 @@ export default function SystemHealthPage() {
       setLastUpdated(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : '健康检查请求失败');
+    }
+    // 并行拉告警(异常也接受,不阻塞健康展示)
+    try {
+      const a = await apiClient.get<AlertsData>('/api/admin/alerts?sinceHours=24&limit=20', {
+        headers: { 'Cache-Control': 'no-store' },
+      });
+      if (a.success && a.data) setAlerts(a.data as AlertsData);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -330,6 +359,9 @@ export default function SystemHealthPage() {
                 );
               })}
           </div>
+
+          {/* ===== W3 告警聚合卡片 ===== */}
+          <AlertsPanel alerts={alerts} />
         </>
       )}
     </div>
@@ -345,7 +377,7 @@ function SummaryCard({
   valueClass = 'text-[var(--text-primary)]',
 }: {
   label: string;
-  value: string;
+  value: string | number;
   valueClass?: string;
 }) {
   return (
@@ -413,4 +445,98 @@ function ComfyUIDetails({ check }: { check: SystemCheckResult }) {
       )}
     </div>
   );
+}
+
+/** W3 · 告警面板子组件 */
+function AlertsPanel({ alerts }: { alerts: AlertsData | null }) {
+  if (!alerts) {
+    return (
+      <div className="mt-8 bg-[var(--bg-card)] rounded-xl border border-[var(--border-color)] p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <ShieldAlert className="w-5 h-5 text-[var(--gold)]" />
+          <h2 className="text-lg font-semibold">近期告警</h2>
+          <span className="ml-2 text-xs text-[var(--text-muted)]">加载中…</span>
+        </div>
+      </div>
+    );
+  }
+  const { summary, groups, recent, windowHours } = alerts;
+  const total = summary.critical + summary.warn + summary.info;
+  return (
+    <div className="mt-8">
+      <div className="flex items-center gap-2 mb-3">
+        <ShieldAlert className="w-5 h-5 text-[var(--gold)]" />
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">近期告警（{windowHours}h）</h2>
+        <span className="text-xs text-[var(--text-muted)]">· 来源 task / comfyui / audit_logs</span>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
+        <SummaryCard label="Critical" value={summary.critical} valueClass={summary.critical > 0 ? 'text-[var(--error)]' : 'text-[var(--text-primary)]'} />
+        <SummaryCard label="Warn" value={summary.warn} valueClass={summary.warn > 0 ? 'text-[var(--warning)]' : 'text-[var(--text-primary)]'} />
+        <SummaryCard label="Info" value={summary.info} />
+        <SummaryCard label="死信任务" value={summary.deadLetterTasks} valueClass={summary.deadLetterTasks > 0 ? 'text-[var(--error)]' : 'text-[var(--text-primary)]'} />
+        <SummaryCard label="ComfyUI 失败" value={summary.comfyuiErrors} valueClass={summary.comfyuiErrors > 0 ? 'text-[var(--warning)]' : 'text-[var(--text-primary)]'} />
+      </div>
+
+      {total === 0 ? (
+        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-color)] p-6 text-center text-sm text-[var(--text-muted)]">
+          过去 {windowHours} 小时内没有任何告警
+        </div>
+      ) : (
+        <div className="grid lg:grid-cols-2 gap-4">
+          {/* 分组 */}
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-color)] p-5">
+            <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">分组聚合</h3>
+            <ul className="space-y-2 max-h-72 overflow-y-auto">
+              {groups.map((g) => (
+                <li key={g.id} className="flex items-center justify-between gap-3 text-sm border-b border-[var(--border-color)] pb-2 last:border-b-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <SeverityDot severity={g.severity} />
+                    <div className="min-w-0">
+                      <div className="truncate text-[var(--text-primary)]">{g.title}</div>
+                      {g.sample && <div className="truncate text-xs text-[var(--text-muted)]">{g.sample}</div>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs text-[var(--text-muted)]">×{g.count}</span>
+                    <span className="text-xs text-[var(--text-muted)]">{new Date(g.lastAt).toLocaleTimeString('zh-CN')}</span>
+                  </div>
+                </li>
+              ))}
+              {groups.length === 0 && <li className="text-sm text-[var(--text-muted)]">无分组</li>}
+            </ul>
+          </div>
+
+          {/* 最近若干条 */}
+          <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-color)] p-5">
+            <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">最近事件</h3>
+            <ul className="space-y-2 max-h-72 overflow-y-auto">
+              {recent.map((r) => (
+                <li key={r.id} className="text-sm border-b border-[var(--border-color)] pb-2 last:border-b-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <SeverityDot severity={r.severity} />
+                      <span className="truncate text-[var(--text-primary)]">{r.title}</span>
+                    </div>
+                    <span className="text-xs text-[var(--text-muted)] shrink-0">{new Date(r.at).toLocaleTimeString('zh-CN')}</span>
+                  </div>
+                  {r.detail && <div className="ml-4 mt-0.5 text-xs text-[var(--text-muted)] truncate">{r.detail}</div>}
+                </li>
+              ))}
+              {recent.length === 0 && <li className="text-sm text-[var(--text-muted)]">无事件</li>}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SeverityDot({ severity }: { severity: 'critical' | 'warn' | 'info' }) {
+  const cls = severity === 'critical'
+    ? 'bg-[var(--error)]'
+    : severity === 'warn'
+      ? 'bg-[var(--warning)]'
+      : 'bg-[var(--text-muted)]';
+  return <span className={`w-2 h-2 rounded-full ${cls} shrink-0`} />;
 }

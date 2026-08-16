@@ -336,3 +336,50 @@ export const models = pgTable('models', {
   index('models_enabled_idx').on(t.enabled),
   index('models_sha_idx').on(t.sha256),
 ]);
+
+// ==================== W1: Worker 节点心跳 ====================
+export const workerNodes = pgTable('worker_nodes', {
+  id: varchar('id', { length: 80 }).primaryKey(),
+  hostname: varchar('hostname', { length: 120 }).notNull(),
+  pid: integer('pid').notNull(),
+  queue: varchar('queue', { length: 50 }).notNull().default('ai-tasks'),
+  pidStartedAt: timestamp('pid_started_at').notNull().defaultNow(),
+  lastHeartbeat: timestamp('last_heartbeat').notNull().defaultNow(),
+  role: varchar('role', { length: 20 }).notNull().default('worker'),
+  meta: jsonb('meta').default({}),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('worker_nodes_heartbeat_idx').on(t.lastHeartbeat),
+  index('worker_nodes_queue_idx').on(t.queue),
+]);
+
+// ==================== W1: API 配置密文备份位 ====================
+export const apiConfigSecrets = pgTable('api_config_secrets', {
+  configId: varchar('config_id', { length: 50 }).primaryKey().references(() => apiConfigs.id, { onDelete: 'cascade' }),
+  ciphertext: text('ciphertext').notNull(),
+  iv: varchar('iv', { length: 32 }).notNull(),
+  authTag: varchar('auth_tag', { length: 32 }).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// ==================== W1: AI 写作助手配置 ====================
+export const aiAssistantConfig = pgTable('ai_assistant_config', {
+  id: integer('id').primaryKey().default(1),
+  enabled: boolean('enabled').default(true).notNull(),
+  provider: varchar('provider', { length: 30 }).default('zhipu').notNull(),
+  model: varchar('model', { length: 100 }).default('glm-4').notNull(),
+  apiKey: text('api_key'),
+  prompts: jsonb('prompts').default({}).notNull(),
+  scope: jsonb('scope').default([]).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// ==================== W1: admin 密码历史 ====================
+export const adminPasswordHistory = pgTable('admin_password_history', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  lastChange: timestamp('last_change').defaultNow().notNull(),
+  mustChange: boolean('must_change').default(true).notNull(),
+  hint: varchar('hint', { length: 100 }),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});

@@ -19,11 +19,13 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
-    "lint:all": "eslint"
+    "lint:all": "eslint",
+    "deploy:verify": "tsx scripts/verify-deployment.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
     "@aws-sdk/lib-storage": "^3.958.0",
+    "@aws-sdk/s3-request-presigner": "^3.1111.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -84,6 +86,7 @@
   },
   "devDependencies": {
     "@google/model-viewer": "^4.2.0",
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.3.3",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
@@ -100,6 +103,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "jsdom": "^25.0.1",
+    "lightningcss-linux-x64-gnu": "^1.33.0",
     "only-allow": "^1.2.2",
     "playwright": "^1.62.1",
     "shadcn": "latest",

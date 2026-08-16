@@ -96,3 +96,10 @@ export type Model = typeof import('./schema/_tables').models.$inferSelect;
 export type PowerReservation = typeof import('./schema/power-reservations').powerReservations.$inferSelect;
 export type NewPowerReservation = typeof import('./schema/power-reservations').powerReservations.$inferInsert;
 export type NewModel = typeof import('./schema/_tables').models.$inferInsert;
+
+// W1 · 新增表类型导出
+export type WorkerNode = typeof import('./schema/_tables').workerNodes.$inferSelect;
+export type NewWorkerNode = typeof import('./schema/_tables').workerNodes.$inferInsert;
+export type ApiConfigSecret = typeof import('./schema/_tables').apiConfigSecrets.$inferSelect;
+export type AiAssistantConfig = typeof import('./schema/_tables').aiAssistantConfig.$inferSelect;
+export type AdminPasswordHistory = typeof import('./schema/_tables').adminPasswordHistory.$inferSelect;

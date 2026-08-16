@@ -1,0 +1,42 @@
+# ============================================================
+# 敦煌金 AI 平台 - W4 · nginx 反向代理 compose
+# 启动:
+#   docker compose -f docker-compose.yml -f deploy/nginx-docker-compose.yml up -d nginx
+#
+# 配合自签证书:
+#   bash deploy/gen-selfsigned.sh --host=192.168.1.10
+#   docker compose -f docker-compose.yml -f deploy/nginx-docker-compose.yml up -d nginx
+# ============================================================
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: dunhuang-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./nginx-cache:/var/cache/nginx
+      - nginx-logs:/var/log/nginx
+    networks:
+      - dunhuang-net
+    depends_on:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  dunhuang-net:
+    external: true
+
+volumes:
+  nginx-cache:
+    name: dunhuang-nginx-cache
+  nginx-logs:
+    name: dunhuang-nginx-logs

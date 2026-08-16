@@ -66,10 +66,24 @@ export async function GET(request: NextRequest) {
 
   try {
     const rows = await dbc.select().from(apiConfigs).orderBy(apiConfigs.createdAt);
+    // W1·API Key 防泄漏:前端仅看到 masked / hasKey
+    const masked = rows.map((r) => {
+      const raw = r.apiKey || '';
+      let hasKey = false;
+      if (raw && !raw.startsWith('your-') && !raw.includes('*') && raw.length > 6) {
+        hasKey = true;
+      }
+      const maskedKey = raw && hasKey ? `${'*'.repeat(Math.max(raw.length - 4, 4))}${raw.slice(-4)}` : '';
+      return {
+        ...r,
+        apiKey: maskedKey,
+        hasKey,
+      };
+    });
     return NextResponse.json({
       requestId: reqId(),
       success: true,
-      data: rows,
+      data: masked,
     });
   } catch (err) {
     return NextResponse.json({

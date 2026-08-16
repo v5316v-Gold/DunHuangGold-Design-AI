@@ -54,14 +54,18 @@ class IdNormalizedExecutor implements Executor {
 }
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const ALLOW_MOCK_IN_PRODUCTION = process.env.ALLOW_MOCK_IN_PRODUCTION === 'true';
 
 let initialized = false;
 export function registerExecutors(): void {
   if (initialized) return;
 
-  // ADR-010：production 不注册 mock
-  if (!IS_PRODUCTION) {
+  // ADR-010：production 禁 mock（除非显式开启 ALLOW_MOCK_IN_PRODUCTION 用于灰度）
+  if (!IS_PRODUCTION || ALLOW_MOCK_IN_PRODUCTION) {
     policyOrchestrator.register(new IdNormalizedExecutor(new MockExecutor()));
+    if (IS_PRODUCTION && ALLOW_MOCK_IN_PRODUCTION) {
+      console.warn('[executor-registry] ⚠️ ALLOW_MOCK_IN_PRODUCTION=true,已在生产注册 MockExecutor（仅灰度用）');
+    }
   } else {
     console.warn('[executor-registry] NODE_ENV=production: MockExecutor 未注册（ADR-010 禁止 mock 成功）');
   }

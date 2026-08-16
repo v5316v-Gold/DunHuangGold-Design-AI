@@ -113,15 +113,21 @@ export async function GET(request: NextRequest) {
   // 扁平化输出：provider 分支字段 + 顶层 model（兼容 getAIAssistantConfig）
   const model =
     (cfg.translateModel as string) || (cfg.llmModel as string) || (cfg.model as string) || '';
+  // W1·R2·API Key 防泄漏:仅返回 masked
+  const rawKey = (cfg.apiKey as string) ?? '';
+  const maskedKey = rawKey && !rawKey.startsWith('your-') && !rawKey.includes('*') && rawKey.length > 6
+    ? `${'*'.repeat(Math.max(rawKey.length - 4, 4))}${rawKey.slice(-4)}`
+    : '';
   return NextResponse.json({
     requestId: reqId(),
     success: true,
     data: {
+      ...cfg,
       provider,
-      apiKey: (cfg.apiKey as string) ?? '',
+      hasKey: !!maskedKey,
+      apiKey: maskedKey,       // 覆盖 ...cfg 中的 apikey
       baseUrl: (cfg.baseUrl as string) ?? '',
       model,
-      ...cfg,
     },
   });
 }

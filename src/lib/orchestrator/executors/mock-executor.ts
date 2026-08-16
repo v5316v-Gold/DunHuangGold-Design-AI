@@ -19,8 +19,8 @@ export class MockExecutor implements Executor {
   async execute(req: FeatureExecutionRequest): Promise<FeatureExecutionResult> {
     const started = Date.now();
 
-    // G2 加固: 生产环境严禁 mock 成功
-    if (process.env.NODE_ENV === 'production') {
+    // G2 加固: 生产环境严禁 mock 成功（除非显式 ALLOW_MOCK_IN_PRODUCTION=true 灰度）
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_IN_PRODUCTION !== 'true') {
       return {
         success: false,
         executorUsed: this.type,

@@ -1,0 +1,39 @@
+# ============================================================
+# 备份调度器(Docker Cron)
+# 用法:
+#   docker compose -f docker-compose.yml -f deploy/cron/docker-compose.backup.yml up -d
+#
+# 默认行为:
+#   - 每天 03:00 触发 backup.sh --prune
+#   - 输出保存到 /var/backups/dunhuang(挂到主机的 BACKUP_DIR)
+# ============================================================
+FROM alpine:3.20
+
+# 必要工具: bash / docker-cli(可选,直连容器用) / mc / dcron / tzdata
+RUN apk add --no-cache \
+      bash \
+      coreutils \
+      curl \
+      dcron \
+      tzdata \
+      postgresql-client \
+      py3-pip && \
+    pip install --break-system-packages --no-cache-dir mc 2>/dev/null || true && \
+    apk add --no-cache mc 2>/dev/null || true
+
+# 时区
+ENV TZ=Asia/Shanghai
+RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
+
+# 工作目录 + 备份脚本
+WORKDIR /app
+COPY scripts/backup.sh /app/backup.sh
+RUN chmod +x /app/backup.sh
+
+# cron 配置:每天凌晨 3 点
+RUN echo "0 3 * * * /app/backup.sh --prune >> /var/log/dunhuang-backup.log 2>&1" > /etc/crontabs/root && \
+    touch /var/log/dunhuang-backup.log
+
+# 启动 dcron(后台),前台保留 bash 以便 docker logs 看
+CMD ["crond", "-f", "-d", "0"]

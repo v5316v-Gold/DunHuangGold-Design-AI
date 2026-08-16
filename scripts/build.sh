@@ -21,6 +21,12 @@ echo ""
 # 直接调用 next build，避免与 package.json#scripts.build 递归
 # 使用 ./node_modules/.bin/next 是因为 PATH 中可能没有 next 命令
 # (Windows + MSYS bash 环境下 npx/pnpm 命令调用经常路径穿透失败)
+# 必须把 JWT_SECRET 等关键 env 显式传过去,bash build 时 worker 子进程不会自动继承
+JWT_SECRET="${JWT_SECRET:-ci-test-jwt-secret-32-chars-minimum-yes}"
+API_KEY_ENCRYPTION_KEY="${API_KEY_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+DATABASE_URL="${DATABASE_URL:-postgresql://dunhuang1:dunhuang2026@localhost:5432/dunhuang}"
+REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
+export JWT_SECRET API_KEY_ENCRYPTION_KEY DATABASE_URL REDIS_URL
 ./node_modules/.bin/next build
 
 echo ""

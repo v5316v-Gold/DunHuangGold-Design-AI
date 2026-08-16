@@ -1,0 +1,32 @@
+services:
+  backup:
+    build:
+      context: ../..
+      dockerfile: deploy/cron/Dockerfile.backup
+    container_name: dunhuang-backup
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      # PG
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: dunhuang1
+      DB_PASSWORD: dunhuang2026
+      DB_NAME: dunhuang
+      # MinIO(internal 通过 dunhuang-net 访问)
+      MINIO_ENDPOINT: http://dunhuang-minio:9000
+      MINIO_BUCKET: dunhuang-uploads
+      MINIO_ROOT_USER: dunhuang
+      MINIO_ROOT_PASSWORD: dunhuang2026
+      # 远端上传(可选): mc://mc-backup/bucket/prefix  或  s3://bucket/prefix
+      # UPLOAD_TO: "mc://mc-backup/dunhuang-backups/$(date +%Y/%m/%d)"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # 访问宿主 docker 用,执行 docker exec
+      - ./backups:/var/backups/dunhuang
+      - ./logs:/var/log
+    networks:
+      - dunhuang-net
+
+networks:
+  dunhuang-net:
+    external: true

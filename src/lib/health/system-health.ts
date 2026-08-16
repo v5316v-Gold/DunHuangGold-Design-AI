@@ -98,27 +98,38 @@ async function checkRedis(): Promise<SystemCheckResult> {
   };
 }
 
-/** BullMQ Worker 在线数（通过 Redis 键统计活跃 worker） */
+/** Worker 在线数（worker_nodes 表·心跳 30s 内）*/
 async function checkWorkers(): Promise<SystemCheckResult> {
   const r = await probe(async () => {
-    const redis = getBullConnection();
-    // Phase 9.26 · BullMQ 无独立 workers 心跳键。
-    // 检测方式：1) 队列 active 键存在 = 有 worker 在消费 2) 有活跃任务
-    // active 键是 list，worker 拉取任务时写入
-    const activeLen = await redis.llen('bull:ai-tasks:active');
-    // 若 active 队列有任务或近期被消费，视为 worker 在线
-    // 补充：检测 BullMQ 的 meta 键（queue 创建即有）
-    const metaExists = await redis.exists('bull:ai-tasks:meta');
-    const online = metaExists > 0 ? 1 : 0;
-    return { online, workers: ['bullmq'], activeJobs: activeLen };
+    if (!db) {
+      // 退化到 BullMQ meta 探测（旧方式）
+      const redis = getBullConnection();
+      const activeLen = await redis.llen('bull:ai-tasks:active');
+      const metaExists = await redis.exists('bull:ai-tasks:meta');
+      return { online: metaExists > 0 ? 1 : 0, workers: ['bullmq-meta-fallback'], activeJobs: activeLen };
+    }
+    const { sql } = await import('drizzle-orm');
+    const fresh = await db.execute<{ id: string; hostname: string; role: string; last_heartbeat: string }>(sql`
+      SELECT id, hostname, role, last_heartbeat
+      FROM worker_nodes
+      WHERE last_heartbeat > NOW() - INTERVAL '30 seconds'
+      ORDER BY last_heartbeat DESC
+    `);
+    const rows = fresh.rows ?? [];
+    const activeLen = await getBullConnection().llen('bull:ai-tasks:active');
+    return {
+      online: rows.length,
+      workers: rows.map((r) => `${r.role}:${r.hostname}:${r.id}`),
+      activeJobs: activeLen,
+    };
   }, 3000);
 
   const online = r.ok ? (r.data?.online as number) ?? 0 : 0;
   return {
-    status: r.ok && online > 0 ? 'ok' : r.ok ? 'degraded' : 'down',
+    status: r.ok && online > 0 ? 'ok' : r.ok ? 'down' : 'down',
     latencyMs: r.latencyMs,
     detail: r.ok ? undefined : r.error,
-    data: { online, workers: r.data?.workers ?? [] },
+    data: { online, workers: r.data?.workers ?? [], activeJobs: r.data?.activeJobs },
     checkedAt: new Date().toISOString(),
   };
 }

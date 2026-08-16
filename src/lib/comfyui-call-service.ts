@@ -598,11 +598,14 @@ export async function callComfyUI(options: ComfyUICallOptions): Promise<ComfyUIC
     };
   }
 
-  // 6. 等待执行完成
+  // 6. 等待执行完成 —— 严格限制 timeout,避免 ComfyUI 异常时 fallback 链被
+  //    5 分钟 polling 拖死 worker。默认 connection.timeout(已 120s),
+  //    这里再额外夹一道 30s 上限,逼迫走 fallback / dead_letter。
+  const waitBudgetMs = Math.min(connection.timeout || 120000, 30_000);
   const completion = await waitForCompletion(
     host,
     submitResult.promptId,
-    connection.timeout
+    waitBudgetMs
   );
 
   return {

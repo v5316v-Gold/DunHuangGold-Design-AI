@@ -129,7 +129,15 @@ export class PolicyOrchestrator {
       const executor = this.executors.get(currentExecutor);
       const supports = executor?.capabilities().has(req.featureId);
       if (!executor || !supports) {
-        // 跳过不支持的执行器
+        // 跳过不支持的执行器 — 必须把当前 executor 记入 trace.attempted,
+        // 否则 decideFallback 会无限循环拿回同一个 executor
+        trace.attempted.push({
+          executorId: currentExecutor,
+          success: false,
+          errorCode: executor ? 'NOT_SUPPORTED' : 'EXECUTOR_MISSING',
+          latencyMs: 0,
+          at: new Date().toISOString(),
+        });
         const fb = decideFallback(plan, trace);
         currentExecutor = fb.nextExecutor;
         continue;

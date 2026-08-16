@@ -77,6 +77,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // W1·Admin 强制改密码检查:必须改到非默认弱密码
+    let mustChangePassword = false;
+    if (user.role === 'admin' && db) {
+      const { adminPasswordHistory } = await import('@/db/schema/_tables');
+      const { eq } = await import('drizzle-orm');
+      try {
+        const [hist] = await db
+          .select()
+          .from(adminPasswordHistory)
+          .where(eq(adminPasswordHistory.userId, user.id))
+          .limit(1);
+        if (hist?.mustChange) {
+          mustChangePassword = true;
+        }
+      } catch {
+        // 表不存在时忽略（旧库未迁移）
+      }
+    }
+
     // 生成 JWT Token
     const token = await generateToken({
       userId: user.id,
@@ -95,10 +114,11 @@ export async function POST(request: NextRequest) {
           role: user.role,
           power: user.power,
           avatar: user.avatar,
+          mustChangePassword,
         },
         token,
       },
-      message: '登录成功',
+      message: mustChangePassword ? '请尽快修改默认密码' : '登录成功',
     });
 
     // 设置 HttpOnly Cookie，浏览器自动随请求发送

@@ -117,18 +117,21 @@ function buildMenuGroups(features: PublicFeature[]) {
     );
   const groups: Record<string, PublicFeature[]> = {};
   for (const f of enabled) {
-    const group = getDisplayGroup(f.id);
+    // W2·优先使用 DB 的 displayGroup,缺失则前端兜底
+    const group = (f as { displayGroup?: string | null }).displayGroup || getDisplayGroup(f.id);
     if (!groups[group]) groups[group] = [];
     groups[group].push(f);
   }
-  // 固定分组顺序
-  const order = ['浮雕圆雕', '灵感与创作', '生成视频', '实用工具'];
-  return order
-    .filter((k) => groups[k])
-    .map((title) => ({
-      title,
-      items: groups[title].sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)),
-    }));
+  // 固定分组顺序 + dialogue 总是置顶
+  const order = ['对话', '浮雕圆雕', '灵感与创作', '生成视频', '实用工具'];
+  const dialogue = (groups['对话'] || []).slice();
+  const others = order.filter((k) => k !== '对话' && groups[k]).map((k) => ({
+    title: k,
+    items: groups[k].sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)),
+  }));
+  return dialogue.length > 0
+    ? [{ title: '对话', items: dialogue }, ...others]
+    : others;
 }
 
 interface SidebarProps {
