@@ -5,6 +5,7 @@
 
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
+import { assertTokenVersion } from '@/lib/token-version';
 
 // JWT 密钥
 const JWT_SECRET = process.env.JWT_SECRET || '';
@@ -77,6 +78,8 @@ export interface JwtPayload {
   userId: string;
   email: string;
   role: string;
+  /** JWT 撤销版本号：等于 users.token_version，logout 时 ++ */
+  ver: number;
 }
 
 /**
@@ -88,21 +91,28 @@ export async function generateToken(payload: JwtPayload): Promise<string> {
     .setIssuedAt()
     .setExpirationTime(JWT_EXPIRES_IN)
     .sign(getSecretKey());
-  
+
   return token;
 }
 
 /**
  * 验证 JWT Token
+ * 流程：jose 验签 + 过期检查 → DB 比对 token_version（撤销机制）
  */
 export async function verifyToken(token: string): Promise<JwtPayload | null> {
+  let payload: JwtPayload;
   try {
-    const { payload } = await jwtVerify(token, getSecretKey());
-    return payload as unknown as JwtPayload;
+    const { payload: raw } = await jwtVerify(token, getSecretKey());
+    payload = raw as unknown as JwtPayload;
   } catch (error) {
     console.error('JWT验证失败:', error);
     return null;
   }
+  // 撤销检查：DB 中 users.token_version 必须等于 JWT.ver
+  if (!(await assertTokenVersion(payload.userId, payload.ver))) {
+    return null;
+  }
+  return payload;
 }
 
 // ==================== 会话管理 ====================

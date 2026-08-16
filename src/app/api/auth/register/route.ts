@@ -84,15 +84,17 @@ export async function POST(request: NextRequest) {
         nickname: users.nickname,
         role: users.role,
         power: users.power,
+        tokenVersion: users.tokenVersion,
       });
 
     const newUser = newUserList[0];
 
-    // 生成 Token
+    // 生成 Token（ver 字段：撤销机制，新用户从 0 开始）
     const token = await generateToken({
       userId: newUser.id,
       email: newUser.email,
       role: newUser.role,
+      ver: (newUser as { tokenVersion?: number }).tokenVersion ?? 0,
     });
 
     const response = NextResponse.json({

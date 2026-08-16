@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
           role: users.role,
           power: users.power,
           avatar: users.avatar,
+          tokenVersion: users.tokenVersion,
         })
         .from(users)
         .where(eq(users.email, email))
@@ -96,11 +97,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 生成 JWT Token
+    // 生成 JWT Token（ver 字段：撤销机制，logout 时自增）
     const token = await generateToken({
       userId: user.id,
       email: user.email,
       role: user.role,
+      ver: (user as { tokenVersion?: number }).tokenVersion ?? 0,
     });
 
     // 返回用户信息（不含密码）

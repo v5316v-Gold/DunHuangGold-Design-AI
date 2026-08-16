@@ -1,0 +1,11 @@
+-- ============================================================
+-- 017 · users 表加 token_version 列（JWT 撤销机制）
+--
+-- 历史：logout 只清 cookie，JWT 本身 7 天有效，泄露的 token 过期前仍可用。
+-- 修复：给 users 加 token_version，每次生成新 token 写入 ver 字段，
+--       verifyToken 时校验 DB 中 ver == JWT.ver，否则视为无效。
+-- logout 时 UPDATE users SET token_version = token_version + 1，
+--       之前签发的所有 token 立即作废。
+-- 幂等 IF NOT EXISTS / ADD COLUMN IF NOT EXISTS。
+-- ============================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version integer NOT NULL DEFAULT 0;

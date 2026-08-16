@@ -17,6 +17,8 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   lastLoginAt: timestamp('last_login_at'),
+  /** JWT 撤销版本号：login 时写入 JWT.ver，logout 时自增（迁移 017） */
+  tokenVersion: integer('token_version').default(0).notNull(),
 });
 
 // ==================== 算力日志表 ====================

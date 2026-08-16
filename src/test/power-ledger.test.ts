@@ -1,9 +1,14 @@
 /**
- * Phase 6 · PowerLedger 单测
+ * Phase 6 · PowerLedger 单测（内存降级）
  *
+ * 强制 @/db → db=null，避免 worker_threads 间 process.env 污染导致走 DB 路径
  * 运行：npx vitest run --config vitest.node.config.ts src/test/power-ledger.test.ts
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// 关键：mock @/db 返回 db=null（与 process.env 无关），确保走内存分支
+vi.mock('@/db', () => ({ db: null }));
+
 import { PowerLedger } from '@/lib/ai/application/power-ledger';
 
 describe('PowerLedger · 三态生命周期（内存降级）', () => {
