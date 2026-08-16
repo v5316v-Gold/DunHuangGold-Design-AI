@@ -8,7 +8,10 @@ export default defineConfig({
     setupFiles: [],
     globals: true,
     // 排除需要 jsdom / 真实 API / 运行中 server 的用例，使 node 套件（CI）可稳定通过
+    // 注意：显式 exclude 会覆盖 Vitest 默认排除项，必须重新包含 node_modules/dist
     exclude: [
+      '**/node_modules/**',   // 第三方库自带测试（默认排除项，需显式恢复）
+      '**/dist/**',           // 构建产物（默认排除项，需显式恢复）
       'src/test/use-task-polling.test.ts', // renderHook 需要 jsdom
       'src/test/minimax.test.ts',          // 打真实付费 MiniMax API
       'src/test/e2e.test.ts',              // 需要 dev server

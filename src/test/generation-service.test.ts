@@ -57,6 +57,22 @@ vi.mock('@/lib/orchestrator/feature-orchestrator', () => ({
   },
 }));
 
+// Phase 9.24: executeSync 已从 feature-orchestrator 迁移至 policy-orchestrator（ADR-002），
+// 必须同步 mock 新模块，否则真实编排器会尝试连接 Redis 导致测试失败
+vi.mock('@/lib/ai/orchestration/policy-orchestrator', () => ({
+  policyOrchestrator: {
+    execute: vi.fn(async (req: { traceId: string }) => ({
+      success: true,
+      executorUsed: 'mock',
+      provider: 'mock',
+      cost: 10,
+      latencyMs: 5,
+      traceId: req.traceId,
+      artifacts: [{ url: 'https://example.com/a.png', mime: 'image/png' }],
+    })),
+  },
+}));
+
 describe('GenerationService · create（异步任务创建）', () => {
   beforeEach(() => vi.clearAllMocks());
 
