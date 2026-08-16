@@ -125,7 +125,7 @@ services:
   # ===== Worker (BullMQ consumer) =====
   worker:
     # 本地构建（docker compose up -d --build）
-    image: dunhuang-worker:v1.18
+    image: dunhuang-worker:v1.19
     build:
       context: .
       dockerfile: Dockerfile.worker

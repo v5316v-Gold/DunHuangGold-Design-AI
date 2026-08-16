@@ -322,11 +322,13 @@ pnpm lint
 
 | 文档 | 路径 |
 |------|------|
-| **Phase 9.22 Hardening 报告** | `docs/MIGRATION/PHASE-9-HARDENING-REPORT.md` |
-| **Phase 9.23 Workflow Asset Closure** | `docs/COMFYUI-WORKFLOW-ASSET-CLOSURE-REPORT.md` |
-| **Phase 9.24 Dead Code Cleanup** | `docs/PHASE-9-24-DEAD-CODE-CLEANUP.md` |
-| **架构蓝图 v2.0** | `ARCHITECTURE-BLUEPRINT-V2.md`(12 份规范合集) |
-| **执行计划** | `docs/MIGRATION/EXECUTION-PLAN.md` |
+| **架构（单一可信源）** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| **生产级修复记录** | [`docs/PRODUCTION-FIXES-2026-08-15.md`](docs/PRODUCTION-FIXES-2026-08-15.md) |
+| **Phase 9.22 Hardening 报告**（历史背景） | `docs/MIGRATION/PHASE-9-HARDENING-REPORT.md` |
+| **Phase 9.23 Workflow Asset Closure**（历史背景） | `docs/COMFYUI-WORKFLOW-ASSET-CLOSURE-REPORT.md` |
+| **Phase 9.24 Dead Code Cleanup**（历史背景） | `docs/PHASE-9-24-DEAD-CODE-CLEANUP.md` |
+
+> Phase 历史报告仅作背景参考，**当前架构与修复以 `ARCHITECTURE.md` + `PRODUCTION-FIXES-2026-08-15.md` 为准**。
 | **Phase 0-9 报告** | `docs/MIGRATION/PHASE-*.md` |
 | **Sentry 接入** | `docs/MIGRATION/SENTRY-SETUP.md` |
 | **容量基线** | `docs/MIGRATION/PHASE-9-CAPACITY-BASELINE.md` |

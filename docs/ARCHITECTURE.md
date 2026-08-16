@@ -1,176 +1,165 @@
-# 敦煌金 AI 设计平台 · 架构权威文档（单一口径）
+# 敦煌金 AI 设计平台 · 架构（v1）
 
-> **本文档是项目架构的唯一权威口径**（Single Source of Truth）。
-> 其他架构类文档（ARCHITECTURE-V2*、NEW-ARCHITECTURE-VS-CURRENT、PROJECT-ARCHITECTURE 等）均为历史阶段产物，仅作背景参考。
-> 最后更新：2026-08-13（Phase 4 起点）
+> **单一可信源（2026-08-16）**：本文档替换 coze 时代旧 ARCHITECTURE.md / AGENTS.md / DEPLOYMENT.md 中残留的过时描述（"12 → 5 核心 API"、"Coze API 部署"、"coze dev/build"、Supabase、`/app/work/logs/bypass` 等）。
+>
+> 详细修复历史见 [`PRODUCTION-FIXES-2026-08-15.md`](./PRODUCTION-FIXES-2026-08-15.md)。
 
 ---
 
-## 1. 项目定位
+## 一、技术栈
 
-敦煌金 AI 设计平台：面向珠宝行业的 AI 创作工作台。
-17 个前端功能（文案生图、产品精修、3D 建模、浮雕、视频生成、AI 对话、佩戴效果等），
-支持云端 API 与本地 ComfyUI 双执行路径。
+| 层 | 选型 | 版本 |
+|---|---|---|
+| 框架 | Next.js（App Router） | 15.2.3 |
+| 语言 | TypeScript | 5.x |
+| UI | React 19 + Tailwind 4 + shadcn/ui (Radix) | — |
+| ORM | Drizzle ORM | 0.45.1 |
+| DB | PostgreSQL | 18.4-alpine |
+| 队列 | Redis 7 + BullMQ | 6.x |
+| AI 编排 | 5 层 Hexagonal（PolicyOrchestrator + 3 个 Executor） | 自研 |
+| 部署 | Docker Compose（Next.js standalone + tsup 打包 worker） | — |
+| 鉴权 | JWT (jose) + HttpOnly Cookie | — |
+| 可观测 | Sentry 8.x + 自建 telemetry（18 字段） | — |
 
-## 2. 技术栈
-
-| 层 | 技术 |
-|----|------|
-| 前端 | Next.js 15.2.3 (App Router) + React 19 + Tailwind CSS v4 + shadcn/ui |
-| 后端 | Next.js API Routes（Node runtime）+ Drizzle ORM |
-| 数据库 | PostgreSQL 18.4（22 张表）|
-| 缓存/队列 | Redis 7 + BullMQ（ioredis）|
-| 对象存储 | MinIO（S3 兼容，@aws-sdk/client-s3）|
-| AI 执行 | 云端 API（MiniMax/DeepSeek）+ 本地 ComfyUI (Windows E:\ComfyUI) |
-| 任务编排 | 自研 Orchestrator + Worker（BullMQ 队列）|
-| 监控 | Sentry + 自研健康检查（system-health）|
-| 部署 | Docker Compose（web/worker/postgres/redis/minio 5 容器）|
-
-## 3. 目录结构（权威）
+## 二、5 层 Hexagonal 架构
 
 ```
-src/
-├── app/                    # Next.js 路由层
-│   ├── api/                # 全部 API 路由（98 个）
-│   │   ├── ai/             # 统一 AI 生成入口（generate / generate-async）
-│   │   ├── admin/          # 管理后台 API（34 个）
-│   │   ├── chat/           # AI 对话（7 provider 支持）
-│   │   ├── comfyui/        # ComfyUI 直连（call/execute/progress）
-│   │   └── ...             # 各功能 API
-│   ├── admin/              # 管理后台页面（10 个 tab）
-│   ├── login/ gallery/ profile/   # 前台页面
-│   └── middleware.ts       # 全局鉴权（JWT 校验 + admin 拦截）
-├── components/
-│   ├── admin/              # 后台组件（ApiSettingsView/ModelsEditor 等）
-│   ├── layout/             # Sidebar（元数据驱动菜单）
-│   └── workspace/          # 17 个前端功能组件
-├── config/                 # 静态配置（features/api-settings/categories）
-├── db/
-│   ├── schema/             # Drizzle 表定义（22 表）
-│   ├── migrations/         # SQL 迁移（009 个）
-│   └── repositories/       # 数据访问层（Feature/Provider/Task/Work/WorkflowVersion）
-├── hooks/                  # React hooks（useAuth/usePower/useFeatures 等）
-├── lib/
-│   ├── ai/                 # ★ Phase 4 编排层（目标架构）
-│   │   ├── domain/         #   Execution Plan 域模型
-│   │   ├── ports/          #   Executor Port 接口
-│   │   ├── handlers/       #   17 个 Feature Handler（迁移中）
-│   │   ├── orchestration/  #   Retry/Fallback/Routing Policy + PolicyOrchestrator
-│   │   ├── application/    #   Generation Service / Power Ledger / Config Service
-│   │   ├── adapters/       #   Executor 适配器注册
-│   │   └── registry/       #   服务注册
-│   ├── ai-service/         # ⚠️ 老式服务层（17 services，Phase 4 待迁移，标记 deprecated）
-│   ├── ai-gateway/         # ⚠️ 旧网关（Phase 4 合并入编排层）
-│   ├── orchestrator/       # ⚠️ 老编排（MockExecutor 待删）
-│   ├── queue/              # 任务状态机 + 队列（task-state/task-queue）
-│   └── ...                 # auth/power/feature-costs/api-response 等
-├── storage/                # 存储层（local/s3）
-├── test/                   # 测试（vitest）
-└── types/                  # 类型定义
+┌────────────────────────────────────────────────────────┐
+│ L1 · Presentation  Next.js 15 App Router               │
+│   ├─ /api    69 routes（含 31 个后台管理端点）         │
+│   ├─ /admin  后台 UI：用户/算力/任务/模型/作品/概览…  │
+│   └─ /workspace  前台 17 功能面板                       │
+├────────────────────────────────────────────────────────┤
+│ L2 · Application  src/lib/ai/application/                │
+│   ├─ GenerationService 幂等防双扣 + 资源结算           │
+│   ├─ PowerLedger  三态 reserve→consume/release（真事务）│
+│   └─ Telemetry    18 字段落库 + Sentry 上报            │
+├────────────────────────────────────────────────────────┤
+│ L3 · Orchestration  src/lib/ai/orchestration/           │
+│   ├─ PolicyOrchestrator 主调度（feature→executor 路由）│
+│   ├─ buildPlan()  构造冻结 ExecutionPlan（ADR-009）   │
+│   ├─ execute(plan?) 传入 plan 跳过重路由（冻结语义）  │
+│   ├─ routing-policy / retry-policy / fallback-policy  │
+│   └─ executors/  3 个 Executor（ComfyUI / Hermes / MiniMax）│
+├────────────────────────────────────────────────────────┤
+│ L4 · Adapters  src/lib/ai/adapters/ + orchestrator/executors/│
+│   ├─ executor-registry 注册 3 个 Executor 并归一化 id  │
+│   └─ IdNormalizedExecutor 修复 -local 后缀 → ExecutorType│
+├────────────────────────────────────────────────────────┤
+│ L5 · Infrastructure                                     │
+│   ├─ PostgreSQL 28+ 表（src/db/schema/）                │
+│   ├─ Redis 7-alpine（BullMQ + 幂等 + 缓存）            │
+│   └─ ComfyUI 0.18+（本地，可选 GPU 容器）              │
+└────────────────────────────────────────────────────────┘
 ```
 
-## 4. 核心架构原则（Phase 4 起强制）
+**依赖方向**：L1 → L2 → L3 → L4 → L5（单向，绝无反向）
 
-1. **API 层不得直接调用任何 Provider** —— 必须经 Generation Service → Handler 链 → Executor
-2. **单一入口**：所有 AI 生成走 `POST /api/ai/generate`（同步）或 `/api/ai/generate-async`（异步）
-3. **17 个 Feature = 17 个 Handler**，注册进 handler registry，元数据驱动
-4. **重试/降级/路由策略**由 Policy Orchestrator 统一决策，业务代码不重复实现
-5. **任务状态机**：所有状态迁移过 `task-state.ts` 的 `canTransition` 校验
-6. **配置数据库化**（Phase 5）：运行参数不写死代码，走 Feature Registry / Provider Registry / Workflow Registry
-7. **Incremental Refactoring**：不回退旧历史、不跨阶段重构、不重写；老代码标记 deprecated 后逐批迁移
+## 三、AI 编排核心（ADR-009 冻结语义）
 
-## 4.5. Phase 4 编排层落点（2026-08-13）
+任务创建时，PolicyOrchestrator 构造 `ExecutionPlan` 快照（包含 executorId / fallbackChain / workflowVersion / models / loras / controlnets）并持久化到 `tasks.execution_plan`（jsonb）。Worker 消费时**读取该 plan 执行**，不再重新 `decideRouting`——保证管理员切换 Active Workflow / `features.default_executor` 时**已创建任务不穿透**。
 
-- **worker 切换**：`workers/orchestrator-worker.ts` 从老 `feature-orchestrator` 切换到新 `policyOrchestrator`
-- **17 个 Handler**：通过 `handler-adapters.ts` 通用适配器从老 `service-registry` 自动生成（无需重写）
-- **`/api/ai/generate` 同步路径**：`generation-service.ts` 的 `executeSync` 也切到 `policyOrchestrator`
-- **超时保护**：`comfyui-call-service.ts` 的 3 个核心 fetch 加 `AbortSignal.timeout`（8s/15s）防止 ComfyUI 不可用时挂起
-- **风险缓解**：老 `feature-orchestrator.ts` 标记 `@deprecated` 保留 rollback 能力
-- **Dockerfile 安全**：JWT_SECRET / ENCRYPTION_KEY 改用 build-arg 注入 + base64 占位（≥32 字符防 fail-closed）
-
-## 5. 请求处理链路（目标状态）
-
-```
-前端组件 → /api/ai/generate
-                │
-                ▼
-        Generation Service
-                │
-                ▼
-       Feature Handler (validate → buildRequest → execute → postProcess)
-                │
-                ▼
-        Policy Orchestrator (routing → retry → fallback)
-                │
-                ▼
-       Executor Port (CloudProviderExecutor | ComfyUIExecutor | LocalLLMExecutor)
-                │
-                ▼
-       Provider API / ComfyUI  →  结果回写 works 表 + 算力扣减
+```sql
+ALTER TABLE tasks ADD COLUMN execution_plan jsonb;  -- 迁移 014
 ```
 
-## 6. 数据模型（22 张表）
+## 四、执行器（Executor）
 
-| 表 | 用途 |
-|----|------|
-| users / sessions | 用户与登录态 |
-| features | 17 功能元数据（开关/算力/执行器/工作流）|
-| api_configs | 云端 API 凭证（含 LLM 连接，availableModels JSONB）|
-| system_settings | 全局配置 KV（cloud_connections / feature-costs 等）|
-| works | 作品（输入/输出 URL、算力、状态）|
-| tasks | 任务（状态机：pending/processing/completed/failed）|
-| power_logs / power_transactions | 算力流水 |
-| models | ComfyUI 模型文件管理 |
-| loras | LoRA 管理 |
-| favorites / prompt_rules / translate_settings / audit_logs 等 | 辅助 |
+| id | type | 能力 |
+|---|---|---|
+| `comfyui` | comfyui | 16 个设计类功能（text2img/refine/relief/...）|
+| `hermes` | hermes | dialogue（AI 对话）|
+| `third-party` | third-party | 5 真支持功能（text2img/text2video/...，云 fallback）|
 
-## 7. 17 个功能清单
+**id 归一化**（W1 + P0 修复）：`IdNormalizedExecutor` 把 `comfyui-local → comfyui`、`mock-local → mock`、`hermes-agent-local → hermes`，与 `routing-policy` 决策的 `ExecutorType` 对齐。修复前本地 ComfyUI/Hermes 永远不会被路由命中。
 
-| # | ID | 名称 | 分类 | 默认执行器 |
-|---|----|------|------|-----------|
-| 1 | text2img | 文案生图 | image | third-party → comfyui |
-| 2 | product-refine | 产品精修 | image | 同上 |
-| 3 | multi-image | 多图融合 | image | 同上 |
-| 4 | one-click-design | 一键设计 | image | 同上 |
-| 5 | multi-view | 生成多视图 | image | 同上 |
-| 6 | sketch-realistic | 线稿/写实 | image | 同上 |
-| 7 | free-creation | 自由创作 | image | 同上 |
-| 8 | remove-background | 移除背景 | image | 同上 |
-| 9 | upscale | 高清放大 | image | 同上 |
-| 10 | remove-watermark | 去除水印 | image | 同上 |
-| 11 | relief | 浮雕图生成 | 3d | comfyui |
-| 12 | image-3d | 3D 模型生成 | 3d | comfyui |
-| 13 | stereo | 图像转立体 | 3d | comfyui |
-| 14 | text2video | 文生视频 | video | third-party |
-| 15 | image2video | 图生视频 | video | third-party |
-| 16 | ai-chat | AI 对话 | chat | minimax/hermes 等 7 provider |
-| 17 | tryon | 佩戴效果 | image | comfyui |
+## 五、算力账本（Power Ledger）
 
-## 8. 安全基线（Phase 4 前置已加固）
+三态原子机（真事务 + 原子 `UPDATE ... SET power = power - $amount WHERE power >= amount`）：
 
-| 项 | 状态 |
-|----|------|
-| JWT_SECRET | ✅ Dockerfile 不再硬编码，构建期随机占位，运行时 compose 注入 |
-| API_KEY_ENCRYPTION_KEY | ✅ 同上（全 0 占位 + 运行时注入真实 64 位 hex）|
-| .env / .env.local / .env.development | ✅ 均不入 git（.gitignore 已覆盖）|
-| .env.example | ✅ 模板入库（占位符，无真实密钥）|
-| API Key 存储 | ✅ 存 DB 加密（api_configs），前端不持有 |
-| 中间件鉴权 | ✅ /admin、/api/admin 强制 admin 角色，fail-closed |
+```
+reserve(userId, taskId, amount)  →  写 power_reservations(reserved)
+                                       （幂等：同 taskId 复用预留）
+settle(reservationId, 'consume')  →  事务内：原子扣余额 + 双写日志 + 标记 consumed
+settle(reservationId, 'release')  →  标记 released（退还预留，不扣）
+```
 
-## 9. 演进路线（Phase 4-8）
+幂等保障：`onConflictDoUpdate` + `inArray(status, ['reserved','released'])` + balance `>= amount` 守卫 + 事务回滚。
 
-| Phase | 内容 | 状态 |
-|-------|------|------|
-| 1-3 | 基础设施/网关/后端 | ✅ 完成（本 Phase 前置已收尾文档+安全）|
-| **4** | **编排层：worker 切换到 PolicyOrchestrator + ComfyUI 超时保护** | ✅ **已落（worker v2.0）** |
-| 5 | 数据层：Repository 收口 + 配置数据库化 + 三大 Registry | ⏳ |
-| 6 | 平台能力：算力账本/模型中心/LoRA/Workflow/告警审计 | ⏳ |
-| 7 | 前端元数据化：Sidebar/Workspace/表单/上传组件 | ⏳ |
-| 8 | 展望：多 Agent/MCP/知识库/插件 | 🔭 |
+## 六、API Key 落库加密（W1）
 
-## 10. 开发约定
+主页 `api_configs.api_key` **只存脱敏值**（前缀 `*` + 后 4 位）。真实密文存 `api_config_secrets`（AES-256-GCM，密钥来自 `API_KEY_ENCRYPTION_KEY`）。解密统一过 `src/lib/secret-vault.ts`。
 
-- 唯一基线：`main`；不回退旧历史
-- 每阶段独立分支（如 `phase4-orchestration`），独立验收后合并
-- 增量重构：老代码标记 deprecated → 逐批迁移 → 最后统一删除
-- 所有 AI 功能改动必须通过 `scripts/test-chat-schema.mjs` 等价测试 + tsc 0 错误
+```ts
+encryptSecret(plain) → { ciphertext, iv, authTag }  // 写 api_config_secrets
+decryptSecret({ ciphertext, iv, authTag }) → plain  // 读时（resolveApiConfig）
+```
+
+## 七、17 功能 × 3 执行器
+
+| 功能 | 短 id | 默认执行器 | 算力 |
+|---|---|---|---:|
+| 文案生图 | text2img | third-party | 15 |
+| 产品精修 | refine | comfyui | 20 |
+| 多图融合 | blend | comfyui | 15 |
+| 一键设计 | oneclick | comfyui | 15 |
+| 生成多视图 | multiview | comfyui | 20 |
+| 线稿/写实 | sketch | comfyui | 15 |
+| 自由创作 | free | comfyui | 15 |
+| 图转浮雕 | relief | comfyui | 20 |
+| 图转 3D | image3d | comfyui | 30 |
+| 平面转立体 | 2dto3d | comfyui | 25 |
+| 移除背景 | removebg | comfyui | 5 |
+| 高清放大 | upscale | comfyui | 5 |
+| 去除水印 | watermark | comfyui | 5 |
+| 文生视频 | text2video | third-party | 50 |
+| 图生视频 | img2video | third-party | 40 |
+| AI 对话 | dialogue | hermes | 2 |
+| 佩戴效果 | tryon | comfyui | 25 |
+
+## 八、任务状态机
+
+```
+pending → processing → completed
+        ↘            ↘ failed → dead_letter
+        ↘            ↘ cancelled
+processing → processing（worker 重入幂等）
+processing → dead_letter（worker 最终失败，已修）
+```
+
+非法流转被 `canTransition(from, to)` 拒绝。
+
+## 九、部署（Docker Compose）
+
+```
+┌──────────┐  ┌──────────┐  ┌────────────────┐
+│ web      │  │ worker   │  │ postgres 18.4  │
+│ Next.js  │  │ BullMQ   │  │ (drizzle 表)   │
+│ :5000    │  │ (tsup)   │  │                 │
+└────┬─────┘  └────┬─────┘  └────────────────┘
+     │             │  consume tasks
+     └─────────────┴─── Redis 7 (BullMQ + 幂等) ───┐
+                                                    │
+                            UPLOAD_DIR (web volume) ┘
+```
+
+启动：
+```bash
+cp .env.example .env  # 填入 JWT_SECRET / API_KEY_ENCRYPTION_KEY / MiniMax
+docker compose up -d --build
+# entrypoint 自动跑 src/db/migrations/*.sql（幂等 IF NOT EXISTS）
+```
+
+## 十、核心架构红线（不可破坏）
+
+- 用户请求**只能**带 `featureId + 业务 params`，禁止带 `workflowId / model / lora / provider / executor`
+- 所有 AI 任务**必须**走 `GenerationService → PolicyOrchestrator(plan) → Executor Port`
+- 任务状态变更**必须**走 `task-state.ts`（不允许 Controller 直写）
+- Worker 重试**必须**读 `tasks.execution_plan` 冻结 plan（ADR-009）
+
+## 十一、版本与镜像
+
+| 组件 | 镜像 tag | 包含 |
+|---|---|---|
+| web | `dunhuang-web:v1.22` | P0#1 ExecutionPlan + P0#2 加密 + 限流 + 31 个后台端点 |
+| worker | `dunhuang-worker:v1.19` | P0#1 plan 读取 + 结算 + heartbeat + executor-registry |
