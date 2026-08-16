@@ -8,9 +8,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
-import { apiConfigs } from '@/db/schema/_tables';
-import { eq } from 'drizzle-orm';
+import { apiConfigs, apiConfigSecrets } from '@/db/schema/_tables';
+import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { encryptSecret, maskApiKey, hasEncryptionKey } from '@/lib/secret-vault';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -133,19 +134,67 @@ export async function POST(request: NextRequest) {
 
     // create / update / 默认：upsert
     const fields = pickFields(body) as Partial<typeof apiConfigs.$inferInsert>;
-    fields.updatedAt = new Date();
-    await dbc
-      .insert(apiConfigs)
-      .values({
-        id,
-        name: fields.name ?? id,
-        enabled: fields.enabled ?? false,
-        ...fields,
-      })
-      .onConflictDoUpdate({
-        target: apiConfigs.id,
-        set: { ...fields, id },
-      });
+
+    // W1 · 写路径强制加密：先 upsert 主页（apiKey 替换为脱敏值，保证 FK 目标行存在），
+    // 再 upsert secrets 密文。apiKey 非空时加密；为空表示未改/清空，保留主页原值+secrets。
+    if (typeof body.apiKey === 'string' && body.apiKey.length > 0) {
+      if (!hasEncryptionKey()) {
+        return NextResponse.json({
+          requestId: reqId(), success: false,
+          error: '服务端未配置 API_KEY_ENCRYPTION_KEY（64 hex），无法安全保存 API Key',
+        }, { status: 500 });
+      }
+      const enc = encryptSecret(body.apiKey);
+      // 主页只存脱敏值
+      (fields as Record<string, unknown>).apiKey = maskApiKey(body.apiKey);
+      // 密文先暂存，等主页 upsert 完（保证 FK 目标存在）再写 secrets
+      fields.updatedAt = new Date();
+      await dbc
+        .insert(apiConfigs)
+        .values({
+          id,
+          name: fields.name ?? id,
+          enabled: fields.enabled ?? false,
+          ...fields,
+        })
+        .onConflictDoUpdate({
+          target: apiConfigs.id,
+          set: { ...fields, id },
+        });
+      // 再 upsert 密文到 secrets 表（set 用 excluded.column 引用新值）
+      await dbc
+        .insert(apiConfigSecrets)
+        .values({
+          configId: id,
+          ciphertext: enc.ciphertext,
+          iv: enc.iv,
+          authTag: enc.authTag,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: apiConfigSecrets.configId,
+          set: {
+            ciphertext: sql`excluded.ciphertext`,
+            iv: sql`excluded.iv`,
+            authTag: sql`excluded.auth_tag`,
+            updatedAt: sql`excluded.updated_at`,
+          },
+        });
+    } else {
+      fields.updatedAt = new Date();
+      await dbc
+        .insert(apiConfigs)
+        .values({
+          id,
+          name: fields.name ?? id,
+          enabled: fields.enabled ?? false,
+          ...fields,
+        })
+        .onConflictDoUpdate({
+          target: apiConfigs.id,
+          set: { ...fields, id },
+        });
+    }
 
     return NextResponse.json({ requestId: reqId(), success: true, data: { id } });
   } catch (err) {
