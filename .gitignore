@@ -30,6 +30,7 @@ yarn-error.log*
 
 # Docker build / test scratch logs
 docker-build.log
+worker-build.log
 build-v*.log
 bv*.log
 vitest-*.txt
