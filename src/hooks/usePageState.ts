@@ -62,11 +62,3 @@ export function usePageState(
 
   return [value, setValue];
 }
-
-/**
- * 清除指定页面的状态
- */
-export function clearPageState(key: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(STORAGE_PREFIX + key);
-}

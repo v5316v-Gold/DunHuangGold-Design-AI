@@ -42,23 +42,7 @@ vi.mock('@/lib/audit-logger', () => ({
   logAudit: vi.fn(async () => undefined),
 }));
 
-// Mock orchestrator（同步路径）：traceId 透传请求的 traceId
-vi.mock('@/lib/orchestrator/feature-orchestrator', () => ({
-  orchestrator: {
-    execute: vi.fn(async (req: { traceId: string }) => ({
-      success: true,
-      executorUsed: 'mock',
-      provider: 'mock',
-      cost: 10,
-      latencyMs: 5,
-      traceId: req.traceId,
-      artifacts: [{ url: 'https://example.com/a.png', mime: 'image/png' }],
-    })),
-  },
-}));
-
-// Phase 9.24: executeSync 已从 feature-orchestrator 迁移至 policy-orchestrator（ADR-002），
-// 必须同步 mock 新模块，否则真实编排器会尝试连接 Redis 导致测试失败
+// Mock policy-orchestrator（executeSync 走它；feature-orchestrator 已删除）
 vi.mock('@/lib/ai/orchestration/policy-orchestrator', () => ({
   policyOrchestrator: {
     execute: vi.fn(async (req: { traceId: string }) => ({
@@ -72,7 +56,6 @@ vi.mock('@/lib/ai/orchestration/policy-orchestrator', () => ({
     })),
   },
 }));
-
 describe('GenerationService · create（异步任务创建）', () => {
   beforeEach(() => vi.clearAllMocks());
 

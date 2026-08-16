@@ -36,7 +36,14 @@ class IdNormalizedExecutor implements Executor {
     execute(req: unknown): Promise<ExecutorResult>;
   }) {
     this.inner = inner;
-    this.id = (inner.id === 'mock-local' ? 'mock' : inner.id) as ExecutorType;
+    // 归一化执行器 id：本地执行器用 -local 后缀，路由决策（routing-policy）用短 id。
+    // 若不归一化，Map.get('comfyui'/'hermes') 会永远失配 → 本地执行器被跳过、只能走云 fallback。
+    const NORMALIZED_IDS: Record<string, ExecutorType> = {
+      'mock-local': 'mock',
+      'comfyui-local': 'comfyui',
+      'hermes-agent-local': 'hermes',
+    };
+    this.id = NORMALIZED_IDS[inner.id] ?? (inner.id as ExecutorType);
     this.productionSafe = this.id !== 'mock';
   }
 

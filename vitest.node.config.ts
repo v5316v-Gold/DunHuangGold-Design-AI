@@ -13,7 +13,6 @@ export default defineConfig({
       '**/node_modules/**',   // 第三方库自带测试（默认排除项，需显式恢复）
       '**/dist/**',           // 构建产物（默认排除项，需显式恢复）
       'e2e/**',               // Playwright 浏览器测试（独立 runner，语法不兼容 vitest）
-      'src/test/use-task-polling.test.ts', // renderHook 需要 jsdom
       'src/test/minimax.test.ts',          // 打真实付费 MiniMax API
       'src/test/e2e.test.ts',              // 需要 dev server
     ],

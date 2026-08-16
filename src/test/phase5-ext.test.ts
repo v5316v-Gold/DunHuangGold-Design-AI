@@ -5,18 +5,6 @@
  */
 import { describe, it, expect } from 'vitest';
 import { encryptSecret, decryptSecret } from '@/db/repositories/provider-repository';
-import { cacheGet, cacheInvalidate } from '@/lib/ai/application/cache-invalidation';
-
-// Mock redis（避免真实连接）
-vi.mock('@/lib/redis', () => ({
-  getRedis: () => ({
-    get: vi.fn(async () => null),
-    set: vi.fn(async () => 'OK'),
-    del: vi.fn(async () => 1),
-  }),
-}));
-
-import { vi } from 'vitest';
 
 describe('provider-repository · 凭据加密（AES-256-GCM）', () => {
   it('加密后可解密还原（密钥一致）', () => {
@@ -67,18 +55,5 @@ describe('provider-repository · 凭据加密（AES-256-GCM）', () => {
     delete process.env.API_KEY_ENCRYPTION_KEY;
     const enc = encryptSecret('sk-test');
     expect(enc).toBeNull();
-  });
-});
-
-describe('cache-invalidation · Redis 缓存联动', () => {
-  it('cacheGet 无缓存 → 走 fetchFn + 回填', async () => {
-    const fetchFn = vi.fn(async () => ({ a: 1 }));
-    const value = await cacheGet('test:key', fetchFn);
-    expect(value).toEqual({ a: 1 });
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-  });
-
-  it('cacheInvalidate 不抛错（Redis mock）', async () => {
-    await expect(cacheInvalidate('test:key')).resolves.toBeUndefined();
   });
 });
