@@ -328,10 +328,8 @@ export default function LoginPage() {
   if (!mounted) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--gold)] to-[var(--gold-hover)] flex items-center justify-center shadow-[0_8px_32px_rgba(212,175,55,0.4)] animate-pulse">
-          <span className="text-black font-bold text-xl" style={{ fontFamily: 'serif' }}>
-            敦
-          </span>
+        <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shadow-[0_8px_32px_rgba(212,175,55,0.4)] animate-pulse">
+          <Image src="/logo.png" alt="敦煌金AI设计平台" width={48} height={48} className="w-full h-full object-cover" unoptimized />
         </div>
       </div>
     );
@@ -569,10 +567,8 @@ export default function LoginPage() {
         <div className="w-full max-w-[420px] relative z-10">
           {/* 移动端 Logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8 animate-fade-in">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--gold)] to-[var(--gold-hover)] flex items-center justify-center shadow-[0_4px_20px_rgba(212,175,55,0.4)]">
-              <span className="text-black font-bold text-lg" style={{ fontFamily: 'serif' }}>
-                敦
-              </span>
+            <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shadow-[0_4px_20px_rgba(212,175,55,0.4)]">
+              <Image src="/logo.png" alt="敦煌金AI设计平台" width={48} height={48} className="w-full h-full object-cover" unoptimized />
             </div>
             <div>
               <h1 className="text-xl font-bold text-[var(--text-primary)]">敦煌金AI</h1>
