@@ -28,6 +28,16 @@ yarn-error.log*
 *.swo
 *~
 
+# Docker build / test scratch logs
+docker-build.log
+build-v*.log
+bv*.log
+vitest-*.txt
+g*.txt
+p*.txt
+v*.txt
+tt.txt
+
 # OS
 .DS_Store
 Thumbs.db
