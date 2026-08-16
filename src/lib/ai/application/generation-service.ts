@@ -222,6 +222,25 @@ class GenerationService {
       };
     }
 
+    // 4.6 构造 ExecutionPlan 快照（ADR-009 冻结语义，Phase 9.23 资产快照）
+    // 持久化到 tasks.execution_plan，Worker 重试时按 plan 执行（不再重新路由）
+    const planResult = await policyOrchestrator.buildPlan({
+      featureId,
+      userId,
+      inputs: params,
+      taskId,
+    });
+    if ('error' in planResult) {
+      // 路由/功能不可用 → 退还预留算力并返回
+      await this.settlePower(userId, taskId, 'release').catch(() => undefined);
+      return {
+        success: false,
+        code: planResult.code,
+        message: planResult.error,
+      };
+    }
+    const executionPlan = planResult;
+
     // 5. 任务落库（统一走 tasks 表，不做散落 insert；显式使用上面的 taskId）
     try {
       if (db) {
@@ -233,6 +252,7 @@ class GenerationService {
           status: 'pending',
           input: params,
           powerCost: cost,
+          executionPlan,
         });
       } else {
         // DB 不可用 → 内存降级（本地开发/测试；生产 DB 正常时走真实落库）

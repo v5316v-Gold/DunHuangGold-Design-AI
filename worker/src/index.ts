@@ -27,7 +27,9 @@ import { policyOrchestrator } from '@/lib/ai/orchestration/policy-orchestrator';
 import '@/lib/ai/adapters/executor-registry';
 import { generationService } from '@/lib/ai/application/generation-service';
 import { db } from '@/storage/database/db';
-import { works } from '@/storage/database/shared/schema';
+import { works, tasks } from '@/storage/database/shared/schema';
+import { eq } from 'drizzle-orm';
+import type { ExecutionPlan } from '@/lib/ai/domain/execution-plan';
 import { createLogger } from '@/lib/error-handler';
 
 const logger = createLogger('worker');
@@ -61,11 +63,27 @@ async function processJob(job: Job<JobData>): Promise<unknown> {
     // 2. 通过 PolicyOrchestrator 执行（主链路 — features.default_executor 路由）
     //    Phase 9.24 改写：原 ai-service registry 已删除，policyOrchestrator 接收
     //    featureId(userId=... & inputs=...) 的统一调用契约。
+    // ADR-009 冻结语义：优先读 tasks.execution_plan（创建时 snapshot），跳过重新 decideRouting
+    let frozenPlan: ExecutionPlan | undefined;
+    if (db) {
+      try {
+        const [row] = await db
+          .select({ executionPlan: tasks.executionPlan })
+          .from(tasks)
+          .where(eq(tasks.id, taskId))
+          .limit(1);
+        frozenPlan = (row?.executionPlan as ExecutionPlan | null) ?? undefined;
+      } catch (e) {
+        logger.warn(`读取 execution_plan 失败，按 feature 配置路由: ${taskId}`, e);
+      }
+    }
+
     const execResult = await policyOrchestrator.execute({
       featureId: serviceType,
       userId,
       inputs: params,
       traceId: taskId,
+      plan: frozenPlan,
     });
     const result = {
       success: execResult.success,

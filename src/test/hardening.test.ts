@@ -7,7 +7,6 @@
  *   3. Dead letter 恢复（canTransition 语义）
  *   4. Provider 不可用时行为（minimax 失败 → fallback）
  *   5. 清理脚本 dry-run（cleanup-stale-tasks 只读模式）
- *   6. Telemetry 字段持久化（recordTelemetry 落库）
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -128,34 +127,4 @@ describe('Phase 9.22 · 清理脚本 dry-run', () => {
   });
 });
 
-// ==================== 6. Telemetry 字段持久化 ====================
-describe('Phase 9.22 · Telemetry 持久化', () => {
-  beforeEach(() => { vi.resetModules(); });
-
-  it('recordTelemetry 无 DB → 不抛错（日志兜底）', async () => {
-    process.env.DATABASE_URL = '';
-    const { recordTelemetry } = await import('@/lib/ai/application/telemetry');
-    await expect(
-      recordTelemetry({
-        requestId: 'req-1',
-        taskId: 'task-1',
-        featureId: 'text2img',
-        providerId: 'minimax',
-        failureCode: 'NONE',
-      })
-    ).resolves.toBeUndefined();
-  });
-
-  it('TelemetryRecord 接口含 14+ 字段（结构验证）', async () => {
-    const { TelemetryRecord } = await import('@/lib/ai/application/telemetry');
-    // 通过类型断言验证结构（编译期已保证字段存在）
-    const rec: TelemetryRecord = {
-      requestId: 'req', traceId: 'trace', taskId: 'task',
-      featureId: 'f', providerId: 'p', failureCode: 'x',
-    };
-    expect(rec.requestId).toBe('req');
-    // interface 是编译期类型（无运行时值），仅验证字段存在
-    expect(rec.featureId).toBe('f');
-    expect(rec.failureCode).toBe('x');
-  });
-});
+// telemetry 模块已在死代码精简中删除（仅测试引用，生产零引用），对应测试一并清理

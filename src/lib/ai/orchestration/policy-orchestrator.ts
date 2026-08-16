@@ -85,34 +85,30 @@ export class PolicyOrchestrator {
 
   // ==================== 主执行 ====================
 
-  async execute(req: {
+  /**
+   * 构造 ExecutionPlan 快照（不执行）。
+   * 供 generation-service 在落库前调用，把 plan 持久化到 tasks.execution_plan，
+   * Worker 重试时按 plan 执行而不是重新 decideRouting（ADR-009 冻结语义）。
+   */
+  async buildPlan(req: {
     featureId: string;
     userId: string;
     inputs: Record<string, unknown>;
-    traceId?: string;
-    requestId?: string;
-  }): Promise<ExecutorResult> {
-    const traceId = req.traceId ?? `trace_${randomUUID()}`;
-    const requestId = req.requestId ?? `req_${randomUUID()}`;
-
-    // 1. 加载功能配置
+    taskId?: string;
+  }): Promise<ExecutionPlan | { error: string; code: string }> {
     const feature = await this.loadFeatureConfig(req.featureId);
     if (!feature) {
-      return this.fail(req.featureId, 'FEATURE_NOT_FOUND', `功能 ${req.featureId} 不存在`, false, traceId);
+      return { error: `功能 ${req.featureId} 不存在`, code: 'FEATURE_NOT_FOUND' };
     }
     if (!feature.enabled) {
-      return this.fail(req.featureId, 'FEATURE_DISABLED', `功能 ${req.featureId} 已被关闭`, false, traceId);
+      return { error: `功能 ${req.featureId} 已被关闭`, code: 'FEATURE_DISABLED' };
     }
-
-    // 2. 路由决策（routing-policy）
     const routing = decideRouting(req.featureId, feature);
     if (this.production && routing.executorId === 'mock') {
-      return this.fail(req.featureId, 'PROVIDER_UNAVAILABLE', 'mock 执行器不允许在生产环境使用', false, traceId);
+      return { error: 'mock 执行器不允许在生产环境使用', code: 'PROVIDER_UNAVAILABLE' };
     }
-
-    // 3. 生成 ExecutionPlan 快照
-    const plan = createExecutionPlan({
-      taskId: (req.inputs.taskId as string) ?? `plan_${randomUUID()}`,
+    return createExecutionPlan({
+      taskId: req.taskId ?? `plan_${randomUUID()}`,
       featureId: req.featureId,
       userId: req.userId,
       executorId: routing.executorId,
@@ -120,6 +116,62 @@ export class PolicyOrchestrator {
       estimatedCost: feature.cost,
       inputsSnapshot: req.inputs,
     });
+  }
+
+  async execute(req: {
+    featureId: string;
+    userId: string;
+    inputs: Record<string, unknown>;
+    traceId?: string;
+    requestId?: string;
+    /** 可选：传入冻结的 ExecutionPlan（来自 tasks.execution_plan），跳过 decideRouting */
+    plan?: ExecutionPlan;
+  }): Promise<ExecutorResult> {
+    const traceId = req.traceId ?? `trace_${randomUUID()}`;
+    const requestId = req.requestId ?? `req_${randomUUID()}`;
+
+    // 1. 加载功能配置（仅在没传 plan 时需要 — 用于 enabled 校验）
+    let feature: Awaited<ReturnType<PolicyOrchestrator['loadFeatureConfig']>>;
+    if (req.plan) {
+      // 有 plan：feature 仍要查一次以做 enabled 校验
+      feature = await this.loadFeatureConfig(req.featureId);
+      if (!feature) {
+        return this.fail(req.featureId, 'FEATURE_NOT_FOUND', `功能 ${req.featureId} 不存在`, false, traceId);
+      }
+      if (!feature.enabled) {
+        return this.fail(req.featureId, 'FEATURE_DISABLED', `功能 ${req.featureId} 已被关闭`, false, traceId);
+      }
+    } else {
+      feature = await this.loadFeatureConfig(req.featureId);
+      if (!feature) {
+        return this.fail(req.featureId, 'FEATURE_NOT_FOUND', `功能 ${req.featureId} 不存在`, false, traceId);
+      }
+      if (!feature.enabled) {
+        return this.fail(req.featureId, 'FEATURE_DISABLED', `功能 ${req.featureId} 已被关闭`, false, traceId);
+      }
+    }
+
+    // 2. 路由决策（routing-policy）
+    // 若调用方已传入冻结的 plan（来自 tasks.execution_plan），直接使用，跳过重新路由
+    let plan: ExecutionPlan;
+    if (req.plan) {
+      plan = req.plan;
+    } else {
+      const routing = decideRouting(req.featureId, feature);
+      if (this.production && routing.executorId === 'mock') {
+        return this.fail(req.featureId, 'PROVIDER_UNAVAILABLE', 'mock 执行器不允许在生产环境使用', false, traceId);
+      }
+      // 3. 生成 ExecutionPlan 快照
+      plan = createExecutionPlan({
+        taskId: (req.inputs.taskId as string) ?? `plan_${randomUUID()}`,
+        featureId: req.featureId,
+        userId: req.userId,
+        executorId: routing.executorId,
+        fallbackChain: routing.fallbackChain,
+        estimatedCost: feature.cost,
+        inputsSnapshot: req.inputs,
+      });
+    }
     const trace = createExecutionTrace(plan);
 
     // 4. 执行链：主执行器 → 兜底链（fallback-policy）

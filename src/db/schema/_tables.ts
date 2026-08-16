@@ -97,6 +97,8 @@ export const tasks = pgTable('tasks', {
   retryCount: integer('retry_count').default(0).notNull(),   // 重试次数
   maxRetries: integer('max_retries').default(3).notNull(),   // 最大重试
   attempt: integer('attempt').default(0).notNull(),          // 当前尝试次数（task-state 写入）
+  /** ADR-009 冻结执行计划（创建时 snapshot，运行中不变，Worker 读取执行） */
+  executionPlan: jsonb('execution_plan'),
   cancelledAt: timestamp('cancelled_at'),                    // 取消时间
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(), // 状态更新时间

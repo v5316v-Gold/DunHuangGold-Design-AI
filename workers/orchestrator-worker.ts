@@ -18,8 +18,10 @@ import {
 import { createLogger } from '@/lib/error-handler';
 import { generationService } from '@/lib/ai/application/generation-service';
 import { db } from '@/db';
-import { works } from '@/db/schema';
+import { works, tasks } from '@/db/schema';
 import { workerNodes } from '@/db/schema/_tables';
+import { eq } from 'drizzle-orm';
+import type { ExecutionPlan } from '@/lib/ai/domain/execution-plan';
 
 const logger = createLogger('orchestrator-worker');
 
@@ -109,11 +111,32 @@ const worker = new Worker(
 
     // 2. 执行（Phase 4：新 PolicyOrchestrator，策略驱动）
     logger.info(`[worker] 执行前: ${taskId} (${featureId}) params=${JSON.stringify(params).slice(0, 100)}`);
+
+    // ADR-009 冻结语义：优先读取 tasks.execution_plan（创建时 snapshot），存在则传入 orchestrator
+    // 跳过重新 decideRouting — 管理员切换 Active Workflow / default_executor 不会穿透已创建任务
+    let frozenPlan: ExecutionPlan | undefined;
+    if (db) {
+      try {
+        const [row] = await db
+          .select({ executionPlan: tasks.executionPlan })
+          .from(tasks)
+          .where(eq(tasks.id, String(taskId)))
+          .limit(1);
+        frozenPlan = (row?.executionPlan as ExecutionPlan | null) ?? undefined;
+        if (frozenPlan) {
+          logger.info(`[worker] 使用冻结的 ExecutionPlan: executor=${frozenPlan.executorId}`);
+        }
+      } catch (e) {
+        logger.warn(`[worker] 读取 execution_plan 失败，按 feature 配置路由: ${taskId}`, e as Error);
+      }
+    }
+
     const result = await policyOrchestrator.execute({
       featureId,
       userId,
       inputs: params,
       traceId,
+      plan: frozenPlan,
     });
     logger.info(`[worker] 执行返回: ${taskId} success=${result.success} exec=${result.executorUsed} cost=${result.cost} latency=${result.latencyMs}ms`);
 
