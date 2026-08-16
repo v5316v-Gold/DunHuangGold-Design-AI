@@ -9,6 +9,7 @@ import { spawn } from 'child_process';
 import { chatSchema, sanitizeError } from '@/lib/validators';
 import { randomUUID } from 'crypto';
 import { unauthorized } from '@/lib/api-response';
+import { createSseResponse } from '@/lib/sse-server';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -184,37 +185,20 @@ async function handleHermesChat(messages: any[], conversationId: string): Promis
   // 调用 Hermes CLI（异步 spawn，参数数组防注入）
   const result = await callHermes(userMessageText, resumeId);
 
-  // 返回 SSE 流式响应（与 openclaw 分支一致的协议）
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        // 先发送 conversationId（Hermes session_id，用于多轮续聊）
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'conversation_id', conversationId: result.sessionId })}\n\n`));
-
-        // 字符级流式输出（正确处理 Unicode 代理对）
-        const chars = [...result.reply];
-        for (let i = 0; i < chars.length; i++) {
-          const data = JSON.stringify({ content: chars[i], done: false });
-          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-          await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: '', done: true })}\n\n`));
-        controller.close();
-      } catch (error) {
-        logger.error('Hermes 流式输出错误', error);
-        const { message } = sanitizeError(error, 'AI 服务暂时不可用，请稍后重试');
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: message, done: true })}\n\n`));
-        controller.close();
+  // 返回 SSE 流式响应（带 keep-alive 心跳 + 120s 整体超时，sse-server 助手实现）
+  return createSseResponse({
+    heartbeatMs: 15_000,
+    maxDurationMs: 120_000,
+    produce: async (enqueue) => {
+      // 先发送 conversationId（Hermes session_id，用于多轮续聊）
+      enqueue(JSON.stringify({ type: 'conversation_id', conversationId: result.sessionId }));
+      // 字符级流式输出（正确处理 Unicode 代理对，async/await 让 heartbeat interval 有机会触发）
+      const chars = [...result.reply];
+      for (let i = 0; i < chars.length; i++) {
+        enqueue(JSON.stringify({ content: chars[i], done: false }));
+        await new Promise((resolve) => setTimeout(resolve, 20));
       }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      enqueue(JSON.stringify({ content: '', done: true }));
     },
   });
 }
