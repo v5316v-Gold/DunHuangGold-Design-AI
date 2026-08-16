@@ -97,6 +97,25 @@ jobs:
       - name: Run unit tests (node env)
         run: NODE_ENV=development pnpm run test:node
 
+  # ===== 3.5 覆盖率门禁（P1-5） =====
+  # 核心 AI 层（lib/ai + lib/comfyui + lib/queue + executors）覆盖率阈值：
+  #   statements ≥ 55% / branches ≥ 65% / functions ≥ 55% / lines ≥ 55%
+  # 阈值定义在 vitest.node.config.ts test.coverage.thresholds
+  coverage:
+    name: 📊 Coverage gate
+    needs: install
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/download-artifact@v4
+        with: { name: node_modules, path: node_modules }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Run coverage with thresholds (core AI layer)
+        run: NODE_ENV=development pnpm exec vitest run --config vitest.node.config.ts --coverage
+
   # ===== 4. 数据库迁移验证（P0-1） =====
   # 用临时 Postgres 容器跑 scripts/migrate.js，验证：
   #   - 全量迁移成功（drizzle journal + 手写 SQL）
@@ -158,7 +177,7 @@ jobs:
   # ===== 5. 生产构建（验证 standalone 可生成） =====
   build:
     name: 🏗 Build (standalone)
-    needs: [lint, typecheck, test, migration]
+    needs: [lint, typecheck, test, coverage, migration]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -176,5 +195,77 @@ jobs:
             echo "❌ .next/standalone not found"
             exit 1
           fi
+
+  # ===== 6. Playwright E2E（P1-4：登录 + 17 功能冒烟 + 任务流转） =====
+  # 说明：真实浏览器 e2e 需要运行中的 web 实例。
+  # CI 中启动 next dev（development 模式）作为被测服务；不依赖外部容器。
+  e2e:
+    name: 🖥 E2E (Playwright)
+    needs: install
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: dunhuang_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+      - uses: actions/download-artifact@v4
+        with: { name: node_modules, path: node_modules }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run migrations + seed admin
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/dunhuang_test
+          ADMIN_PASSWORD: AdminTest1234
+        run: |
+          node scripts/migrate.js
+          NODE_ENV=development pnpm exec tsx src/db/seed.ts || echo "seed partially skipped (ok)"
+      - name: Start dev server (background)
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/dunhuang_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-jwt-secret-only-for-unit-tests-not-production
+        run: |
+          NODE_ENV=development pnpm next dev -p 5000 -H 0.0.0.0 &
+          echo $! > /tmp/next.pid
+          # 等待端口就绪
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:5000/api/ping >/dev/null 2>&1; then
+              echo "✅ dev server ready"
+              break
+            fi
+            sleep 1
+          done
+      - name: Run Playwright E2E
+        env:
+          E2E_BASE_URL: http://127.0.0.1:5000
+          E2E_ADMIN_EMAIL: admin@dunhuang.com
+          E2E_ADMIN_PASSWORD: AdminTest1234
+        run: pnpm exec playwright test
+      - name: Upload Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+      - name: Stop dev server
+        if: always()
+        run: kill $(cat /tmp/next.pid) || true
+
           echo "✅ standalone build verified"
           ls -la .next/standalone | head -5

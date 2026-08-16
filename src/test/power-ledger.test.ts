@@ -3,7 +3,7 @@
  *
  * 运行：npx vitest run --config vitest.node.config.ts src/test/power-ledger.test.ts
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PowerLedger } from '@/lib/ai/application/power-ledger';
 
 describe('PowerLedger · 三态生命周期（内存降级）', () => {
@@ -101,5 +101,91 @@ describe('PowerLedger · 三态生命周期（内存降级）', () => {
     const found = await ledger.findByTask('u1', 'task-find');
     expect(found).not.toBeNull();
     expect(found?.featureId).toBe('relief');
+  });
+});
+
+describe('PowerLedger · 边界与幂等（P1 补测）', () => {
+  let ledger: PowerLedger;
+
+  beforeEach(() => {
+    ledger = new PowerLedger();
+  });
+
+  it('release 幂等：重复 release 不报错、状态不回退', async () => {
+    const r = await ledger.reserve({
+      userId: 'u1',
+      featureId: 'text2img',
+      amount: 15,
+      taskId: 'task-rel2',
+    });
+    const s1 = await ledger.settle(r.reservation!.id, 'release');
+    const s2 = await ledger.settle(r.reservation!.id, 'release');
+    expect(s1.success).toBe(true);
+    expect(s2.success).toBe(true);
+    // 状态已释放（内存态可验证）
+    const after = await ledger.findByTask('u1', 'task-rel2');
+    expect(after?.status).toBe('released');
+  });
+
+  it('consume 后 release → no-op（consumed 不回退到 released）', async () => {
+    const r = await ledger.reserve({
+      userId: 'u1',
+      featureId: 'text2img',
+      amount: 15,
+      taskId: 'task-cr',
+    });
+    await ledger.settle(r.reservation!.id, 'consume');
+    const rel = await ledger.settle(r.reservation!.id, 'release');
+    expect(rel.success).toBe(true);
+    const after = await ledger.findByTask('u1', 'task-cr');
+    expect(after?.status).toBe('consumed'); // 不回退
+  });
+
+  it('余额不足 → reserve 拒绝（INSUFFICIENT）', async () => {
+    // 内存态 getBalance 返回 null（fail-open），此处用 spy 模拟余额 5 < 15
+    const spy = vi.spyOn(ledger, 'getBalance').mockResolvedValue(5);
+    const r = await ledger.reserve({
+      userId: 'u1',
+      featureId: 'text2img',
+      amount: 15,
+      taskId: 'task-poor',
+    });
+    expect(r.success).toBe(false);
+    expect(r.error).toMatch(/算力不足/);
+    spy.mockRestore();
+  });
+
+  it('余额恰好等于金额 → reserve 成功（边界 >=）', async () => {
+    const spy = vi.spyOn(ledger, 'getBalance').mockResolvedValue(15);
+    const r = await ledger.reserve({
+      userId: 'u1',
+      featureId: 'text2img',
+      amount: 15,
+      taskId: 'task-eq',
+    });
+    expect(r.success).toBe(true);
+    spy.mockRestore();
+  });
+
+  it('findByTask 未找到 → null', async () => {
+    const found = await ledger.findByTask('u1', 'no-such-task');
+    expect(found).toBeNull();
+  });
+
+  it('settle 不存在的预留 → 返回错误', async () => {
+    const s = await ledger.settle('no-such-reservation-id', 'consume');
+    expect(s.success).toBe(false);
+    expect(s.error).toMatch(/预留不存在/);
+  });
+
+  it('不同用户同 taskId 互不可见（隔离性）', async () => {
+    await ledger.reserve({
+      userId: 'u1',
+      featureId: 'relief',
+      amount: 20,
+      taskId: 'task-shared',
+    });
+    const foundByU2 = await ledger.findByTask('u2', 'task-shared');
+    expect(foundByU2).toBeNull();
   });
 });

@@ -233,7 +233,28 @@ export async function runGate(opts: RunGateOptions): Promise<GateReport> {
   const items: GateItem[] = [];
 
   // 1. JSON valid
-  items.push(checkJsonValid(opts.workflowJson));
+  const jsonGate = checkJsonValid(opts.workflowJson);
+  items.push(jsonGate);
+
+  // P1 加固：JSON 无效时短路返回，避免后续门禁在 null/空对象上抛异常
+  // （如 checkInputMappingValid 对 Object.values(null) 抛 TypeError）
+  if (jsonGate.status === 'fail') {
+    items.push({ name: 'deps_resolved', status: 'skipped', message: 'JSON 无效，跳过依赖检查' });
+    items.push({ name: 'nodes_resolved', status: 'skipped', message: 'JSON 无效，跳过节点检查' });
+    items.push({ name: 'input_mapping_valid', status: 'skipped', message: 'JSON 无效，跳过输入映射检查' });
+    items.push({ name: 'output_mapping_valid', status: 'skipped', message: 'JSON 无效，跳过输出映射检查' });
+    items.push({ name: 'comfyui_validation', status: 'skipped', message: 'JSON 无效，跳过结构校验' });
+    items.push({ name: 'dry_run', status: 'skipped', message: 'JSON 无效，跳过 dry run' });
+    items.push({ name: 'feature_binding', status: 'skipped', message: 'JSON 无效，跳过绑定检查' });
+    const blockers = items.filter((x) => x.status === 'fail').map((x) => x.name);
+    return {
+      workflowId: opts.workflowId,
+      workflowVersionId: opts.workflowVersionId,
+      overallPass: false,
+      items,
+      blockers,
+    };
+  }
 
   // 2. Required model dependencies resolved（执行 Dependency Analyzer）
   let depAnalysis: DependencyAnalysis | null = null;

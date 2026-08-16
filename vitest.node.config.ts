@@ -12,10 +12,32 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',   // 第三方库自带测试（默认排除项，需显式恢复）
       '**/dist/**',           // 构建产物（默认排除项，需显式恢复）
+      'e2e/**',               // Playwright 浏览器测试（独立 runner，语法不兼容 vitest）
       'src/test/use-task-polling.test.ts', // renderHook 需要 jsdom
       'src/test/minimax.test.ts',          // 打真实付费 MiniMax API
       'src/test/e2e.test.ts',              // 需要 dev server
     ],
+    // P1 · 覆盖率门禁范围：核心 AI 编排/账本/门禁/队列层
+    // 排除纯接口/类型文件（ports）与 UI/路由层（app/api、components），
+    // 使覆盖率统计聚焦于有业务逻辑的可测单元
+    coverage: {
+      provider: 'v8',
+      include: [
+        'src/lib/ai/**',
+        'src/lib/comfyui/**',
+        'src/lib/queue/**',
+        'src/lib/orchestrator/executors/**',
+      ],
+      exclude: [
+        'src/lib/ai/ports/**', // 纯类型/接口定义，无可测逻辑
+      ],
+      thresholds: {
+        statements: 55,
+        branches: 65,
+        functions: 55,
+        lines: 55,
+      },
+    },
   },
   resolve: {
     alias: {

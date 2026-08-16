@@ -159,14 +159,14 @@ describe('error-handler · Logger 自动联动 Sentry', () => {
 
     log.error('integration test', { ctx: 'verify' });
 
-    // 等待异步 import 完成
-    await new Promise((r) => setTimeout(r, 50));
-
-    expect(spy).toHaveBeenCalledWith(
-      expect.any(Error),
-      expect.objectContaining({
-        tags: expect.objectContaining({ logger: 'phase9-test' }),
-      })
-    );
+    // 等待异步 import 完成（并发下固定 50ms 不可靠，改为轮询等待）
+    await vi.waitFor(() => {
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          tags: expect.objectContaining({ logger: 'phase9-test' }),
+        })
+      );
+    }, { timeout: 2000, interval: 20 });
   });
 });

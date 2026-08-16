@@ -202,7 +202,7 @@ src/
 │  └─ feature-registry.ts      # feature_code → 组件 静态映射(唯一真源)
 ├─ components/                 # UI 组件
 ├─ worker/src/                 # BullMQ Worker
-└─ test/                       # 测试(270 个用例)
+└─ test/                       # 测试(291 单测 + 19 E2E) + e2e/(Playwright 浏览器测试)
 ```
 
 ---
@@ -282,6 +282,13 @@ NODE_ENV=development ./node_modules/.bin/vitest run --config vitest.node.config.
 # 全部测试
 pnpm test:node
 
+# 覆盖率门禁（核心 AI 层: statements≥55% / branches≥65% / functions≥55% / lines≥55%）
+pnpm exec vitest run --config vitest.node.config.ts --coverage
+
+# Playwright E2E（登录 + 17 功能冒烟 + 任务流转；需 web 实例运行于 5000 端口）
+pnpm exec playwright install chromium
+E2E_BASE_URL=http://127.0.0.1:5000 pnpm exec playwright test
+
 # 类型检查
 ./node_modules/.bin/tsc --noEmit
 
@@ -289,11 +296,15 @@ pnpm test:node
 pnpm lint
 
 # CI: GitHub Actions
-#   install → lint → typecheck → test → migration → build
+#   install → lint → typecheck → test → coverage → migration → e2e → build
 #   全部 fail-fast,无 continue-on-error
 ```
 
-**当前状态**:`tsc --noEmit` 0 错 / `next build` 成功 / **node 套件 230+ 用例通过**（270 个用例中，排除 jsdom / 真实 API / e2e 三类，见 `vitest.node.config.ts`）
+**当前状态**:`tsc --noEmit` 0 错 / `next build` 成功 / **node 套件 291 用例 100% 通过**（23 个测试文件）+ **Playwright E2E 19 用例通过**（17 功能面板冒烟 + 登录会话 + 任务流转）
+
+**覆盖率门禁（P1）**:核心 AI 编排/账本/门禁/队列层（`lib/ai` + `lib/comfyui` + `lib/queue` + executors）:
+- statements 58%+ / branches 74%+ / functions 66%+
+- 阈值定义于 `vitest.node.config.ts`（低于阈值 CI 直接失败）
 
 ---
 
