@@ -6,7 +6,7 @@
  * 职责：works 表统一读写（作品保存/列表查询）。
  */
 
-import { eq, desc, type SQL } from 'drizzle-orm';
+import { eq, desc, and, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import { works } from '@/db/schema/_tables';
 import { withRetry } from './db-retry';
@@ -76,7 +76,10 @@ export class WorkRepository {
         dbc
           .select()
           .from(works)
-          .where(conditions.length === 1 ? conditions[0] : (undefined as never))
+          // 用 and(...conditions) 统一组合：length=1 时等价于该条件，length≥2 时正确 AND。
+          // 旧实现 length===1 ? conditions[0] : (undefined as never) 在加 type 过滤时
+          // 传入 undefined → drizzle 跳过 WHERE → 返回全部用户作品（IDOR 越权）。
+          .where(and(...conditions))
           .orderBy(desc(works.createdAt))
           .limit(limit)
           .offset(offset)
