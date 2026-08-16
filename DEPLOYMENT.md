@@ -1,5 +1,11 @@
 # 敦煌金 AI 设计平台 - 部署计划
 
+> **⚠️ 弃用声明（2026-08-15）**：本文档为 coze 时代旧版本残留（架构图含 "Coze API"、依赖 Supabase、`/app/work/logs/bypass` 路径、1Panel 早期部署脚本等），与当前 Docker Compose（postgres 18.4-alpine + redis 7-alpine + Next.js standalone + BullMQ Worker）部署架构不符。
+>
+> **请改阅单一可信源**：[`docs/PRODUCTION-FIXES-2026-08-15.md`](docs/PRODUCTION-FIXES-2026-08-15.md) 和 [`docker-compose.yml`](docker-compose.yml)。
+>
+> 实际部署流程：`cp .env.example .env` → 填入密钥 → `docker compose up -d --build`（web/worker 自动构建，entrypoint 自动迁移）。
+
 ## 一、部署架构概览
 
 ```

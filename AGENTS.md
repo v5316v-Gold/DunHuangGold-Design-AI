@@ -1,5 +1,11 @@
 # 敦煌金 AI 设计平台
 
+> **⚠️ 弃用声明（2026-08-15）**：本文档为 coze 时代旧版本残留（描述的是 12→5 核心 API 的早期简化版架构、`/workspace/projects` 旧目录、`coze dev/build` 命令等），与当前 Next.js 15 + Docker + ComfyUI/MiniMax 架构不符。
+>
+> **请改阅单一可信源**：[`docs/PRODUCTION-FIXES-2026-08-15.md`](docs/PRODUCTION-FIXES-2026-08-15.md) 和 [`README.md`](README.md)。
+>
+> 完整修复记录与新架构说明以那两份文档为准。
+
 ## 项目概览
 敦煌金 AI 设计平台是一个集成多种 AI 设计工具的在线工作台，包含文案生图、3D 建模、浮雕设计、视频生成等功能。采用敦煌金色主题（#C8A45C），深色背景系统，响应式布局。
 
