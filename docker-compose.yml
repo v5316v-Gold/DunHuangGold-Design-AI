@@ -63,7 +63,7 @@ services:
   # ===== Web (Next.js) =====
   web:
     # 本地构建（docker compose up -d --build）；镜像 tag 与构建产物绑定
-    image: dunhuang-web:v1.22
+    image: dunhuang-web:v1.23
     build:
       context: .
       dockerfile: Dockerfile

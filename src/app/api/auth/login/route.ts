@@ -122,11 +122,11 @@ export async function POST(request: NextRequest) {
     });
 
     // 设置 HttpOnly Cookie，浏览器自动随请求发送
-    // Secure: false — 因为本服务运行在 HTTP，Secure=true 会导致浏览器不发送 cookie
+    // Secure: 生产 HTTPS 才开 Secure flag（开发 HTTP 必须 false，否则浏览器不发 cookie）
     // httpOnly 已经是强保护，sameSite: lax 防 CSRF
     response.cookies.set('auth_token', token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',

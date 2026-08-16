@@ -104,10 +104,10 @@ export async function POST(request: NextRequest) {
       message: '注册成功',
     });
 
-    // 设置 HttpOnly Cookie
+    // 设置 HttpOnly Cookie（Secure 仅在生产 HTTPS 部署时启用）
     response.cookies.set('auth_token', token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',

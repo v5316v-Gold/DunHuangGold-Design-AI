@@ -15,6 +15,7 @@ export default defineConfig({
       'e2e/**',               // Playwright 浏览器测试（独立 runner，语法不兼容 vitest）
       'src/test/minimax.test.ts',          // 打真实付费 MiniMax API
       'src/test/e2e.test.ts',              // 需要 dev server
+      'src/test/generation-service.test.ts', // 依赖 jsdom env（policy-orchestrator import 链需要 window），归 vitest.config.ts（jsdom + setup）跑
     ],
     // P1 · 覆盖率门禁范围：核心 AI 编排/账本/门禁/队列层
     // 排除纯接口/类型文件（ports）与 UI/路由层（app/api、components），

@@ -161,5 +161,16 @@ docker compose up -d --build
 
 | 组件 | 镜像 tag | 包含 |
 |---|---|---|
-| web | `dunhuang-web:v1.22` | P0#1 ExecutionPlan + P0#2 加密 + 限流 + 31 个后台端点 |
+| web | `dunhuang-web:v1.23` | P0#1+#2 + reconcile 修复 + Cookie Secure（生产 HTTPS 才开）+ 限流 |
 | worker | `dunhuang-worker:v1.19` | P0#1 plan 读取 + 结算 + heartbeat + executor-registry |
+
+## 十二、已知 P1 遗留（上线后改进项，不阻塞部署）
+
+| 项 | 现状 | 推荐 |
+|---|---|---|
+| **JWT 撤销** | `logout` 只清客户端 cookie，**JWT 本身仍 7 天有效**——泄露的 token 在过期前可继续使用 | 加 `users.token_version`，JWT payload 含 `ver`，logout 时 `token_version++`，`verifyToken` 校验 `ver === user.token_version`（DB 一致性保证） |
+| **Cookie Secure flag** | ✅ P1 已修：login/register/logout 都用 `process.env.NODE_ENV === 'production'` 条件启 Secure | 部署时确认用 HTTPS + 反代（已就绪 `docker-compose.yml` 由 nginx/traefik 终止 TLS） |
+| **chat SSE 超时** | 当前 `spawn` 长 LLM 调用无心跳，长对话时 nginx 可能 60s 切连接 | 流式响应加 `:\n\n` 增量 keep-alive（每 15s 一字节） + AbortSignal.timeout 120s |
+| **test jsdom 隔离** | `generation-service.test.ts` 在 node 环境采集期挂起（旧 `feature-orchestrator` 删后 import 解析涉及 jsdom 路径） | 给该文件加 `// @vitest-environment jsdom` 指令，或在 `vitest.node.config.ts` 用 `exclude` 排除让它在 jsdom 配置下跑 |
+| **reconcile-power `--apply` 幂等** | ✅ 已修：按 `(user_id, reason)` 查重，同源 adjust 行已存在则跳过 |
+| **架构文档** | ✅ ARCHITECTURE.md 已与代码一致 | 持续随代码演进 |
