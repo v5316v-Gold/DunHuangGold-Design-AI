@@ -37,6 +37,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callComfyUI, checkComfyUIHealth } from '@/lib/comfyui-call-service';
 import { createLogger } from '@/lib/error-handler';
 import { requireAuth } from '@/lib/auth';
+import { rateLimit, getClientIP, WRITE_LIMIT, rateLimitResponse } from '@/lib/rate-limit';
 import { unauthorized } from '@/lib/api-response';
 import { randomUUID } from 'crypto';
 
@@ -61,6 +62,10 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ requestId: reqId(), success: false, error: '请先登录' }, { status: 401 });
     }
+
+    // 1.5 限流：按用户 ID（GPU 生成昂贵，防单用户刷爆）
+    const rl = await rateLimit(`comfyui-call:${user.userId}`, WRITE_LIMIT);
+    if (!rl.success) return rateLimitResponse(rl);
 
     // 2. 解析请求
     const body = await request.json();

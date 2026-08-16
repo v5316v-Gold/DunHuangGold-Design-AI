@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { createLogger } from '@/lib/error-handler';
+import { rateLimit, getClientIP, API_LIMIT, rateLimitResponse } from '@/lib/rate-limit';
 const logger = createLogger('chat');
 
 import { getApiConfig } from '@/lib/api-config-service';
@@ -28,6 +29,10 @@ export const runtime = 'nodejs';
 export async function POST(request: NextRequest) {
   const user = await requireAuth(request);
   if (!user) return unauthorized();
+
+  // 限流：按用户 ID 限流（防 API 配额滥用）
+  const rl = await rateLimit(`chat:${user.userId}`, API_LIMIT);
+  if (!rl.success) return rateLimitResponse(rl);
 
   try {
     // 验证请求参数
