@@ -60,6 +60,18 @@ const nextConfig: NextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
           },
+          // P2 打磨:HSTS 仅在生产 HTTPS 下启用（dev HTTP 无效）
+          ...(process.env.NODE_ENV === 'production' && process.env.HSTS_ENABLED !== 'false' ? [{
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains',
+          }] : []),
+          // P2 打磨:CSP（Content-Security-Policy）
+          // 允许 unsafe-inline/eval 是因为 Next.js 客户端 hydration 依赖（_next/static、eval）
+          // 生产部署建议接 HTTPS 后启用 nonce 模式
+          ...(process.env.CSP_ENABLED === 'true' ? [{
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' ws: wss: https:; media-src 'self' blob: https:; object-src 'self' https:; frame-src 'self' https:; worker-src 'self' blob:;",
+          }] : []),
         ],
       },
     ];
