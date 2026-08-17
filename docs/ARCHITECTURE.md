@@ -161,8 +161,15 @@ docker compose up -d --build
 
 | 组件 | 镜像 tag | 包含 |
 |---|---|---|
-| web | `dunhuang-web:v1.23` | P0#1+#2 + reconcile 修复 + Cookie Secure（生产 HTTPS 才开）+ 限流 |
+| web | `dunhuang-web:v1.26` | P0#1+#2 + reconcile 修复 + Cookie Secure（生产 HTTPS 才开）+ 限流 + HSTS/CSP 响应头 |
 | worker | `dunhuang-worker:v1.19` | P0#1 plan 读取 + 结算 + heartbeat + executor-registry |
+
+**P0 完整时间线**（按构建顺序）：
+- **v1.22** — P0#1 ExecutionPlan 持久化（迁移 014 + tasks.execution_plan 字段 + buildPlan() + Worker 读 plan 跳过重路由）
+- **v1.23** — 死代码精简 + IdNormalizedExecutor 修复（修复隐藏 bug：本地 ComfyUI/Hermes 因 id 失配永远不被路由命中）+ web/worker 镜像首版
+- **v1.24** — P0 完整安全套件（自助充值封堵、SSRF 默认拒绝、命令注入改 spawn、JWT 撤销、Cookie Secure 统一、jsdom 隔离、限流）
+- **v1.25** — P0#2 API Key 写路径加密（迁移 015 + admin subagent 新增 28 个端点 + api-config POST 加密 + reconcile-power 调整行修复）
+- **v1.26** — P0#2 GET hasKey 修复（从查 secrets 表而非从 masked 字符串误判）+ ARCHITECTURE P0 时间线补完
 
 ## 十二、已知 P1 遗留（上线后改进项，不阻塞部署）
 
