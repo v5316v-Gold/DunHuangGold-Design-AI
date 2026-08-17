@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/db';
 import { apiConfigs, apiConfigSecrets } from '@/db/schema/_tables';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { encryptSecret, maskApiKey, hasEncryptionKey } from '@/lib/secret-vault';
 
@@ -67,13 +67,20 @@ export async function GET(request: NextRequest) {
 
   try {
     const rows = await dbc.select().from(apiConfigs).orderBy(apiConfigs.createdAt);
-    // W1·API Key 防泄漏:前端仅看到 masked / hasKey
+    // P0 #2 修复:hasKey 不再从主页字符串判断（写入已加密、主页存 masked 含 *），
+    // 改为查 api_config_secrets 表是否有密文
+    const ids = rows.map((r) => r.id);
+    const secretMap = new Map<string, { ciphertext: string; iv: string; authTag: string }>();
+    if (ids.length > 0) {
+      const secRows = await dbc
+        .select({ configId: apiConfigSecrets.configId, ciphertext: apiConfigSecrets.ciphertext, iv: apiConfigSecrets.iv, authTag: apiConfigSecrets.authTag })
+        .from(apiConfigSecrets)
+        .where(inArray(apiConfigSecrets.configId, ids));
+      for (const s of secRows) secretMap.set(s.configId, { ciphertext: s.ciphertext, iv: s.iv, authTag: s.authTag });
+    }
     const masked = rows.map((r) => {
+      const hasKey = secretMap.has(r.id);  // P0 #2: 有 secrets 记录即有 key
       const raw = r.apiKey || '';
-      let hasKey = false;
-      if (raw && !raw.startsWith('your-') && !raw.includes('*') && raw.length > 6) {
-        hasKey = true;
-      }
       const maskedKey = raw && hasKey ? `${'*'.repeat(Math.max(raw.length - 4, 4))}${raw.slice(-4)}` : '';
       return {
         ...r,

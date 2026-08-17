@@ -63,7 +63,7 @@ services:
   # ===== Web (Next.js) =====
   web:
     # 本地构建（docker compose up -d --build）；镜像 tag 与构建产物绑定
-    image: dunhuang-web:v1.25
+    image: dunhuang-web:v1.26
     build:
       context: .
       dockerfile: Dockerfile
@@ -125,7 +125,7 @@ services:
   # ===== Worker (BullMQ consumer) =====
   worker:
     # 本地构建（docker compose up -d --build）
-    image: dunhuang-worker:v1.19
+    image: dunhuang-worker:v1.20
     build:
       context: .
       dockerfile: Dockerfile.worker
