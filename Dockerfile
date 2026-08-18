@@ -51,6 +51,12 @@ COPY --from=builder /app/src/storage/database/migrations ./src/storage/database/
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 RUN chmod +x /app/scripts/docker-entrypoint.sh
 
+# Hermes 本地 CLI mock（scripts/hermes-mock.js → /usr/local/bin/hermes）
+# 让路由的 Hermes 路径真正可用（spawn 'hermes' 成功），AIDialog 走本地分支
+COPY --from=builder /app/scripts/hermes-mock.js /usr/local/bin/hermes
+RUN chmod +x /usr/local/bin/hermes && \
+    ln -sf /usr/local/bin/hermes /usr/bin/hermes
+
 RUN mkdir -p /app/uploads && chown -R nextjs:nodejs /app
 USER nextjs
 EXPOSE 5000
