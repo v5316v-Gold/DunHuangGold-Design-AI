@@ -121,6 +121,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   // Ref 追踪图片（同步读取，解决 state 异步更新导致的竞态）
   const uploadedImagesRef = useRef<string[]>([]);
   const cost = getTaskCost('dialogue');
@@ -264,6 +265,14 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 输入框随内容自适应高度（上限 200px，超出内部滚动），避免多行内容撑破底部布局
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [input]);
 
   const createNewConversation = () => {
     const newConversation: Conversation = {
@@ -660,7 +669,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
       </div>
 
       {/* 中间 - 主对话交互区域 */}
-      <div className="flex-1 flex flex-col bg-[var(--bg-primary)]">
+      <div className="flex-1 min-w-0 flex flex-col bg-[var(--bg-primary)]">
         {/* 顶部状态栏 */}
         <div className="h-12 px-4 flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-secondary)]">
           <div className="flex items-center gap-2">
@@ -673,9 +682,9 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
         </div>
 
         {/* 对话内容展示区 */}
-        <div className="flex-1 overflow-y-auto p-6 bg-dots">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-dots">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center">
+            <div className="min-h-full flex flex-col items-center justify-center text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-[var(--gold)] to-[var(--gold-hover)] rounded-2xl flex items-center justify-center mb-6 shadow-lg">
                 <Sparkles className="w-10 h-10 text-black" />
               </div>
@@ -775,7 +784,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
         </div>
 
         {/* 底部输入交互区 */}
-        <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]">
+        <div className="shrink-0 p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]">
           <div className="max-w-3xl mx-auto">
             <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-4">
               {/* 顶部 token 统计（参考 Cursor 风格） */}
@@ -836,11 +845,12 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
 
               {/* 输入框 */}
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="输入消息，或上传图片作为参考..."
-                className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none focus:outline-none min-h-[60px]"
+                className="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none focus:outline-none min-h-[56px] max-h-[200px] overflow-y-auto"
                 rows={2}
                 disabled={isLoading}
               />
