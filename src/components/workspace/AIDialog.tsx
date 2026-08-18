@@ -465,66 +465,63 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           throw new Error(errorMsg);
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
+        // 改为 response.text() 整体读取（消除 streaming 解析在某些浏览器/网络下的失败模式，
+        // 失去逐字符打字机效果，但保证兼容性 — 完整回复一次性出现）
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+          const text = await response.text();
+          const lines = text.split('\n');
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const dataStr = line.slice(6).trim();
+            if (!dataStr || dataStr === '[DONE]') continue;
 
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
-              const dataStr = line.slice(6).trim();
-              if (!dataStr || dataStr === '[DONE]') continue;
+            try {
+              const data = JSON.parse(dataStr) as Record<string, unknown>;
 
-              try {
-                const data = JSON.parse(dataStr) as Record<string, unknown>;
-
-                if (data.type === 'conversation_id' && data.conversationId) {
-                  // 保存服务器的 conversationId 到对话
-                  serverConversationId = data.conversationId as string;
-                  setConversations((prev) =>
-                    prev.map((c) =>
-                      c.id === conversationId ? { ...c, conversationId: serverConversationId } : c
-                    )
-                  );
-                  continue;
-                }
-
-                const content = data.content as string | undefined;
-                if (content) {
-                  hasContent = true;
-                  accumulatedContent += content;
-
-                  setConversations((prev) =>
-                    prev.map((c) => {
-                      if (c.id === conversationId) {
-                        return {
-                          ...c,
-                          messages: c.messages.map((m) =>
-                            m.id === assistantMessageId
-                              ? { ...m, content: accumulatedContent }
-                              : m
-                          ),
-                        };
-                      }
-                      return c;
-                    })
-                  );
-                }
-              } catch {
-                // 忽略解析错误
+              if (data.type === 'conversation_id' && data.conversationId) {
+                // 保存服务器的 conversationId 到对话
+                serverConversationId = data.conversationId as string;
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === conversationId ? { ...c, conversationId: serverConversationId } : c
+                  )
+                );
+                continue;
               }
+
+              const content = data.content as string | undefined;
+              if (content) {
+                hasContent = true;
+                accumulatedContent += content;
+              }
+            } catch {
+              // 忽略单行解析错误
             }
           }
-        } finally {
-          reader.releaseLock();
+
+          // 一次性更新 assistant 消息
+          if (hasContent) {
+            setConversations((prev) =>
+              prev.map((c) => {
+                if (c.id === conversationId) {
+                  return {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId
+                        ? { ...m, content: accumulatedContent }
+                        : m
+                    ),
+                  };
+                }
+                return c;
+              })
+            );
+          }
+        } catch (streamError) {
+          if ((streamError as Error).name !== 'AbortError') {
+            console.error('[AIDialog] 流式调用失败:', streamError);
+          }
         }
       } catch (streamError) {
         if ((streamError as Error).name === 'AbortError') {
