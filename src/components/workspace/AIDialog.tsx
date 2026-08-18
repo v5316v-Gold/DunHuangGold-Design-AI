@@ -311,6 +311,8 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
+    // 30 秒整体超时（防止 Hermes/MiniMax 长时间不响应时用户无限等待）
+    const timeoutSignal = AbortSignal.timeout(30_000);
 
     // 从 ref 读取图片（同步），避免 state 异步导致的竞态
     const currentImages = [...uploadedImagesRef.current];
@@ -422,6 +424,11 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
       });
 
       try {
+        // 合并用户取消 signal + 超时 signal
+        const combinedSignal = AbortSignal.any([
+          abortControllerRef.current!.signal,
+          timeoutSignal,
+        ]);
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: {
@@ -439,7 +446,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
             thinking_depth: params.thinkingDepth,
             system_prompt: params.systemPrompt || undefined,
           }),
-          signal: abortControllerRef.current!.signal,
+          signal: combinedSignal,
         });
 
         if (!response.ok || !response.body) {
@@ -534,6 +541,25 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
       }
     } catch (error) {
       console.error('[AIDialog] Error:', error);
+      // 区分错误类型：用户取消 / 30s 超时 / 其他
+      let errorMsg = '抱歉，发生了错误。请稍后重试。';
+      const err = error as Error;
+      if (err.name === 'AbortError') {
+        // 是用户主动取消（不是超时）→ 静默，不更新 assistant 消息
+        if (abortControllerRef.current?.signal.aborted && !timeoutSignal?.aborted) {
+          // 用户取消：删除空 assistant 消息，恢复干净状态
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.id !== conversationId) return c;
+              return { ...c, messages: c.messages.filter((m) => m.id !== assistantMessageId) };
+            })
+          );
+          return; // 不走 finally 后面？finally 仍会跑但 isLoading=false 没问题
+        }
+        errorMsg = '⏱️ 回复超时（30秒未响应），请稍后重试。';
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id === conversationId) {
@@ -541,7 +567,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
               ...c,
               messages: c.messages.map((m) =>
                 m.id === assistantMessageId
-                  ? { ...m, content: '抱歉，发生了错误。请稍后重试。' }
+                  ? { ...m, content: errorMsg }
                   : m
               ),
             };
