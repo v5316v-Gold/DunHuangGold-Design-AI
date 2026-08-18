@@ -673,6 +673,7 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="请输入邮箱地址"
                     required
+                    data-testid="login-email"
                     className="w-full h-12 pl-12 pr-4 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold-muted)] transition-all"
                   />
                 </div>
@@ -695,6 +696,7 @@ export default function LoginPage() {
                     placeholder={mode === 'login' ? '请输入密码' : '至少6位密码'}
                     required
                     minLength={mode === 'register' ? 6 : undefined}
+                    data-testid="login-password"
                     className="w-full h-12 pl-12 pr-12 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[var(--gold)] focus:ring-2 focus:ring-[var(--gold-muted)] transition-all"
                   />
                   <button
@@ -724,6 +726,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
+                data-testid="login-submit"
                 className={cn(
                   'w-full h-12 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all relative overflow-hidden',
                   loading

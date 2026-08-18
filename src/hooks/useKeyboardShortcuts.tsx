@@ -93,31 +93,37 @@ export function useKeyboardShortcuts(
       }
 
       const pressedKey = e.key.toLowerCase();
-      const pressedModifiers = {
-        ctrl: e.ctrlKey,
+      // ctrl(Windows/Linux) 与 meta(macOS Cmd) 视为同一「主修饰键」槽位
+      const pressed = {
+        primary: e.ctrlKey || e.metaKey,
         alt: e.altKey,
         shift: e.shiftKey,
-        meta: e.metaKey,
       };
 
       for (const shortcut of shortcutsRef.current) {
-        const keyMatches = shortcut.key.toLowerCase() === pressedKey;
-        const modifiersMatch = !shortcut.modifiers || (
-          shortcut.modifiers.every((mod) => pressedModifiers[mod]) &&
-          shortcut.modifiers.length === 
-            Object.values(pressedModifiers).filter(Boolean).length
-        );
+        if (shortcut.key.toLowerCase() !== pressedKey) continue;
 
-        if (keyMatches && modifiersMatch) {
-          if (shortcut.preventDefault !== false) {
-            e.preventDefault();
-          }
-          if (shortcut.stopPropagation) {
-            e.stopPropagation();
-          }
-          shortcut.handler(e);
-          break;
+        const mods = shortcut.modifiers || [];
+        // ctrl 与 meta 归并为同一个主修饰键，兼容 Windows(Ctrl) 与 macOS(Cmd)
+        const requiresPrimary = mods.some((m) => m === 'ctrl' || m === 'meta');
+        const requiresAlt = mods.includes('alt');
+        const requiresShift = mods.includes('shift');
+
+        const modifiersMatch =
+          requiresPrimary === pressed.primary &&
+          requiresAlt === pressed.alt &&
+          requiresShift === pressed.shift;
+
+        if (!modifiersMatch) continue;
+
+        if (shortcut.preventDefault !== false) {
+          e.preventDefault();
         }
+        if (shortcut.stopPropagation) {
+          e.stopPropagation();
+        }
+        shortcut.handler(e);
+        break;
       }
     };
 

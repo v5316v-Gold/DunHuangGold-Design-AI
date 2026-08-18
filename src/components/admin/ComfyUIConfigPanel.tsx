@@ -229,9 +229,10 @@ export default function ComfyUIConfigPanel() {
                         placeholder="填入 workflow ID"
                         value={tempWorkflowId}
                         onChange={(e) => setTempWorkflowId(e.target.value)}
+                        data-testid={`workflow-id-input-${workflow.id}`}
                         className="w-48"
                       />
-                      <Button size="sm" onClick={() => saveWorkflowId(workflow.id)}>
+                      <Button size="sm" onClick={() => saveWorkflowId(workflow.id)} data-testid={`workflow-id-save-${workflow.id}`}>
                         <Save className="w-4 h-4" />
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
@@ -243,6 +244,7 @@ export default function ComfyUIConfigPanel() {
                       <Button 
                         size="sm" 
                         variant="outline" 
+                        data-testid={`workflow-id-config-${workflow.id}`}
                         onClick={() => {
                           setEditingId(workflow.id);
                           setTempWorkflowId(workflow.workflowId);

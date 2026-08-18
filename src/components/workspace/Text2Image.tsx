@@ -160,6 +160,7 @@ export default function Text2Image({ power, onDeductPower }: WorkspaceProps) {
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="描述您的创意..."
+                    data-testid="prompt-textarea"
                     className="w-full h-50 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 pr-16 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none focus:border-[var(--gold)] focus:outline-none transition-all"
                     disabled={isGenerating}
                   />
@@ -201,7 +202,7 @@ export default function Text2Image({ power, onDeductPower }: WorkspaceProps) {
               </div>
 
               {error && (
-                <div className="mb-4 p-3 bg-[var(--accent-red-light)] border border-[var(--accent-red)]/30 rounded-lg text-sm text-[var(--accent-red)]">{error}</div>
+                <div data-testid="generate-error" className="mb-4 p-3 bg-[var(--accent-red-light)] border border-[var(--accent-red)]/30 rounded-lg text-sm text-[var(--accent-red)]">{error}</div>
               )}
             </div>
           </div>
@@ -209,6 +210,7 @@ export default function Text2Image({ power, onDeductPower }: WorkspaceProps) {
           {/* 底部按钮 */}
           <div className="p-5 border-t border-[var(--border-color)]">
             <button onClick={handleGenerate} disabled={isGenerating || !prompt.trim()}
+              data-testid="generate-submit"
               className="w-full h-10 bg-gradient-to-r from-[var(--gold)] to-[var(--gold-hover)] text-black font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all hover:shadow-lg shadow-[0_0_12px_rgba(200,164,92,0.4)]">
               {isGenerating ? (
                 <><RefreshCw className="w-5 h-5 animate-spin" />生成中...</>
@@ -232,11 +234,12 @@ export default function Text2Image({ power, onDeductPower }: WorkspaceProps) {
                   </div>
                 </div>
                 <p className="text-lg text-[var(--text-secondary)] mb-2">AI 正在创作中...</p>
-                <p className="text-sm text-[var(--text-muted)]">{Math.round(progress)}%</p>
+                <p className="text-sm text-[var(--text-muted)]" data-testid="progress-bar">{Math.round(progress)}%</p>
               </div>
             ) : generatedImages.length > 0 ? (
               <div className="animate-scale-in relative">
                 <Image src={generatedImages[0].imageUrl} alt="Generated"
+                  data-testid="result-image"
                   width={800} height={600}
                   style={{ transform: `scale(${zoom})` }}
                   className="max-w-full max-h-[65vh] object-contain rounded-xl shadow-2xl transition-transform duration-300" unoptimized />

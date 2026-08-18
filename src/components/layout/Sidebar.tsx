@@ -353,6 +353,7 @@ export default function Sidebar({ activePanel, onPanelChange, onNavigate }: Side
                       key={item.id}
                       onClick={() => handlePanelChange(item.id)}
                       disabled={!isEnabled}
+                      data-testid={`feature-${item.id}`}
                       className={cn(
                         'relative flex items-center gap-3 rounded-lg transition-all duration-200 text-left group',
                         isExpanded ? 'px-3 py-2.5' : 'px-0 py-3 justify-center',
