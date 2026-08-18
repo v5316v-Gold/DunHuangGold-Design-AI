@@ -116,8 +116,30 @@ export async function POST(request: NextRequest) {
     const conversationId = requestConversationId || randomUUID();
 
     if (selectedProvider === 'hermes') {
-      // 使用本机 Hermes Agent（Windows）
-      return await handleHermesChat(allMessages, conversationId);
+      // 本地优先：DIALOGUE_RUNTIME=cloud 或 Hermes 调用失败时降级到 MiniMax
+      const forceCloud = (process.env.DIALOGUE_RUNTIME || '').toLowerCase() === 'cloud';
+      if (forceCloud) {
+        logger.info('DIALOGUE_RUNTIME=cloud，降级到 MiniMax');
+        return await handleMinimaxChat(
+          allMessages,
+          'MiniMax-M2.7-highspeed',
+          process.env.MINIMAX_API_KEY || '',
+          conversationId,
+          { temperature, max_tokens, top_p },
+        );
+      }
+      try {
+        return await handleHermesChat(allMessages, conversationId);
+      } catch (hermesErr) {
+        logger.warn('Hermes 调用失败，降级到 MiniMax', { error: (hermesErr as Error).message });
+        return await handleMinimaxChat(
+          allMessages,
+          'MiniMax-M2.7-highspeed',
+          process.env.MINIMAX_API_KEY || '',
+          conversationId,
+          { temperature, max_tokens, top_p },
+        );
+      }
     } else if (selectedProvider === 'openclaw') {
       // 使用九色鹿 AI 助手
       return await handleOpenClawChat(allMessages, conversationId);
