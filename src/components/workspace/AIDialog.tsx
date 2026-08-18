@@ -608,9 +608,9 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   }, [filteredConversations]);
 
   return (
-    <div className="flex-1 grid grid-cols-[300px_1fr_320px] overflow-hidden" data-ai-assistant-enabled>
+    <div className="flex-1 flex overflow-hidden" data-ai-assistant-enabled>
       {/* 左侧 - 历史对话管理面板 */}
-      <div className="bg-[var(--bg-primary)] border-r border-[var(--border-color)] flex flex-col overflow-hidden">
+      <div className="w-[240px] shrink-0 bg-[var(--bg-primary)] border-r border-[var(--border-color)] flex flex-col overflow-hidden">
         {/* 新建对话按钮 */}
         <div className="p-4">
           <button
@@ -738,14 +738,14 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
               </p>
             </div>
           ) : (
-            <div className="space-y-6 max-w-3xl mx-auto">
+            <div className="space-y-5 w-full px-2">
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={cn('flex gap-2', message.role === 'user' ? 'justify-end' : 'justify-start')}
                 >
                   {message.role === 'assistant' && message.content && (
-                    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[var(--gold)] to-[var(--gold-hover)] flex items-center justify-center flex-shrink-0 mt-1">
+                    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[var(--gold)] to-[var(--gold-hover)] flex items-center justify-center flex-shrink-0">
                       <Bot className="w-3.5 h-3.5 text-black" />
                     </div>
                   )}
@@ -793,7 +793,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
                     </div>
                   )}
                   {message.role === 'user' && (
-                    <div className="w-6 h-6 rounded-md bg-[var(--bg-hover)] flex items-center justify-center flex-shrink-0 mt-1 border border-[var(--border-color)]">
+                    <div className="w-6 h-6 rounded-md bg-[var(--bg-hover)] flex items-center justify-center flex-shrink-0 border border-[var(--border-color)]">
                       <User className="w-3.5 h-3.5 text-[var(--text-primary)]" />
                     </div>
                   )}
@@ -830,7 +830,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
 
         {/* 底部输入交互区 */}
         <div className="shrink-0 p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]">
-          <div className="max-w-3xl mx-auto">
+          <div className="w-full">
             <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-4">
               {/* 已上传图片预览 */}
               {uploadedImages.length > 0 && (
@@ -1114,7 +1114,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
       </div>
 
       {/* 右侧 - 场景预设面板 */}
-      <div className="bg-[var(--bg-primary)] border-l border-[var(--border-color)] overflow-y-auto">
+      <div className="w-[240px] shrink-0 bg-[var(--bg-primary)] border-l border-[var(--border-color)] overflow-y-auto">
         <div className="p-5">
           <h3 className="text-base font-semibold text-[var(--text-primary)] mb-5 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[var(--gold)]" />
