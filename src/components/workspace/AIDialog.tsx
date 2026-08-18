@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import {
   Send,
@@ -87,6 +87,24 @@ interface Conversation {
 interface AIDialogProps {
   power: number;
   onDeductPower: (amount: number, reason: string) => void;
+}
+
+/** 时间格式 HH:MM */
+function formatTime(d: Date): string {
+  return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/** 日期分桶（今天 / 昨天 / 近 7 天 / 近 30 天 / 更早） */
+function getDateBucket(d: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today.getTime() - target.getTime()) / 86400000);
+  if (diffDays === 0) return '今天';
+  if (diffDays === 1) return '昨天';
+  if (diffDays < 7) return '近 7 天';
+  if (diffDays < 30) return '近 30 天';
+  return '更早';
 }
 
 export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
@@ -579,10 +597,20 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // 按日期分桶分组
+  const groupedConversations = useMemo(() => {
+    const groups: Record<string, typeof filteredConversations> = {};
+    for (const c of filteredConversations) {
+      const bucket = getDateBucket(c.createdAt);
+      (groups[bucket] ??= []).push(c);
+    }
+    return groups;
+  }, [filteredConversations]);
+
   return (
-    <div className="flex-1 flex overflow-hidden" data-ai-assistant-enabled>
+    <div className="flex-1 grid grid-cols-[300px_1fr_320px] overflow-hidden" data-ai-assistant-enabled>
       {/* 左侧 - 历史对话管理面板 */}
-      <div className="w-[260px] min-w-[260px] bg-[var(--bg-primary)] border-r border-[var(--border-color)] flex flex-col">
+      <div className="bg-[var(--bg-primary)] border-r border-[var(--border-color)] flex flex-col overflow-hidden">
         {/* 新建对话按钮 */}
         <div className="p-4">
           <button
@@ -608,20 +636,23 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           </div>
         </div>
 
-        {/* 历史对话记录 */}
+        {/* 历史对话记录（按日期分组） */}
         <div className="flex-1 overflow-y-auto px-4 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-[var(--text-secondary)]">历史对话记录</span>
-            <span className="text-xs text-[var(--text-muted)]">共{conversations.length}条</span>
-          </div>
-
           {filteredConversations.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-[var(--text-muted)]">暂无对话记录</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {filteredConversations.map((conversation) => (
+            <div className="space-y-4">
+              {Object.entries(groupedConversations).map(([bucket, items]) => (
+                <div key={bucket}>
+                  <div className="flex items-center gap-2 mb-1.5 px-1">
+                    <span className="text-[10px] font-semibold tracking-wider uppercase text-[var(--text-gold)]">{bucket}</span>
+                    <div className="flex-1 h-px bg-[var(--border-color)]" />
+                    <span className="text-[10px] text-[var(--text-muted)]">{items.length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {items.map((conversation) => (
                 <div
                   key={conversation.id}
                   role="button"
@@ -662,8 +693,11 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+                    ))}
+                  </div>
+                </div>
+                ))}
+              </div>
           )}
         </div>
       </div>
@@ -671,14 +705,22 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
       {/* 中间 - 主对话交互区域 */}
       <div className="flex-1 min-w-0 flex flex-col bg-[var(--bg-primary)]">
         {/* 顶部状态栏 */}
-        <div className="h-12 px-4 flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-secondary)]">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm text-[var(--text-secondary)]">SYSTEM READY</span>
+        <div className="h-12 px-4 flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-secondary)] gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+            <span className="text-sm font-medium text-[var(--text-primary)] truncate">基于 MiniMax-M2.5</span>
+            <span className="text-[10px] text-[var(--text-muted)] tracking-wider uppercase">SYSTEM READY</span>
           </div>
-          <span className="text-sm font-medium text-[var(--text-primary)]">
-            {currentConversation?.title || '新对话'}
-          </span>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {currentConversation && currentConversation.messages.length > 0 && (
+              <span className="text-[11px] text-[var(--text-muted)] font-mono">
+                {currentConversationTokenUsage.toFixed(1)}k / 1.0M
+              </span>
+            )}
+            <span className="text-xs font-medium text-[var(--text-primary)] truncate max-w-[200px]">
+              {currentConversation?.title || '新对话'}
+            </span>
+          </div>
         </div>
 
         {/* 对话内容展示区 */}
@@ -700,17 +742,17 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={cn('flex gap-4', message.role === 'user' ? 'justify-end' : 'justify-start')}
+                  className={cn('flex gap-2', message.role === 'user' ? 'justify-end' : 'justify-start')}
                 >
                   {message.role === 'assistant' && message.content && (
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--gold)] to-[var(--gold-hover)] flex items-center justify-center flex-shrink-0 shadow-md">
-                      <Bot className="w-5 h-5 text-black" />
+                    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[var(--gold)] to-[var(--gold-hover)] flex items-center justify-center flex-shrink-0 mt-1">
+                      <Bot className="w-3.5 h-3.5 text-black" />
                     </div>
                   )}
                   {message.content && (
                     <div
                       className={cn(
-                        'max-w-[75%] rounded-2xl px-5 py-4',
+                        'relative max-w-[75%] rounded-2xl px-4 py-3 pb-5',
                         message.role === 'user'
                           ? 'bg-[var(--gold)] text-black'
                           : 'bg-[var(--bg-card)] text-[var(--text-primary)] border border-[var(--border-color)]'
@@ -745,11 +787,14 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
                             })}
                         </div>
                       )}
+                      <span className="absolute bottom-1.5 right-3 text-[10px] opacity-60 font-mono">
+                        {formatTime(message.timestamp)}
+                      </span>
                     </div>
                   )}
                   {message.role === 'user' && (
-                    <div className="w-10 h-10 rounded-xl bg-[var(--bg-hover)] flex items-center justify-center flex-shrink-0 border border-[var(--border-color)]">
-                      <User className="w-5 h-5 text-[var(--text-primary)]" />
+                    <div className="w-6 h-6 rounded-md bg-[var(--bg-hover)] flex items-center justify-center flex-shrink-0 mt-1 border border-[var(--border-color)]">
+                      <User className="w-3.5 h-3.5 text-[var(--text-primary)]" />
                     </div>
                   )}
                 </div>
@@ -787,32 +832,29 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
         <div className="shrink-0 p-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]">
           <div className="max-w-3xl mx-auto">
             <div className="bg-[var(--bg-card)] border border-[var(--border-color)] rounded-2xl p-4">
-              {/* 顶部 token 统计（参考 Cursor 风格） */}
-              {currentConversation && currentConversation.messages.length > 0 && (
-                <div className="flex items-center justify-between mb-2 text-[11px] text-[var(--text-muted)]">
-                  <span>
-                    {currentConversationTokenUsage.toFixed(1)}k / 1.0M · 剩余 {(1000 - currentConversationTokenUsage).toFixed(1)}k
-                  </span>
-                  <div className="w-24 h-1 bg-[var(--bg-hover)] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[var(--text-muted)] transition-all"
-                      style={{ width: `${Math.min(100, (currentConversationTokenUsage / 1000) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
               {/* 已上传图片预览 */}
               {uploadedImages.length > 0 && (
-                <div className="flex gap-2 mb-3 flex-wrap">
-                  {uploadedImages.map((img, index) => (
-                    <div key={index} className="relative group">
-                      <Image
-                        src={img}
-                        alt={`上传图片 ${index + 1}`}
-                        className="w-16 h-16 object-cover rounded-lg border border-[var(--border-color)]"
-                        width={64}
-                        height={64}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-medium text-[var(--text-secondary)]">
+                      附件 ({uploadedImages.length})
+                    </span>
+                    <button
+                      onClick={() => setUploadedImages([])}
+                      className="text-[10px] text-[var(--text-muted)] hover:text-[var(--accent-red)] transition-colors"
+                    >
+                      全部清除
+                    </button>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {uploadedImages.map((img, index) => (
+                      <div key={index} className="relative group">
+                        <Image
+                          src={img}
+                          alt={`上传图片 ${index + 1}`}
+                          className="w-16 h-16 object-cover rounded-lg border border-[var(--border-color)]"
+                          width={64}
+                          height={64}
                         unoptimized
                       />
                       <button
@@ -823,6 +865,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
                       </button>
                     </div>
                   ))}
+                </div>
                 </div>
               )}
 
@@ -1071,7 +1114,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
       </div>
 
       {/* 右侧 - 场景预设面板 */}
-      <div className="w-[280px] min-w-[280px] bg-[var(--bg-primary)] border-l border-[var(--border-color)] overflow-y-auto">
+      <div className="bg-[var(--bg-primary)] border-l border-[var(--border-color)] overflow-y-auto">
         <div className="p-5">
           <h3 className="text-base font-semibold text-[var(--text-primary)] mb-5 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[var(--gold)]" />
