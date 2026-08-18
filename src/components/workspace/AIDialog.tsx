@@ -114,6 +114,13 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  // 最后一次 /api/chat 响应状态（顶部徽章显示，让用户直接看到后端是否在工作）
+  const [lastChatProbe, setLastChatProbe] = useState<{
+    status: number;
+    bodyLen: number;
+    ms: number;
+    body: string;
+  } | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
     // 模型参数与工具栏 UI
@@ -429,12 +436,14 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           abortControllerRef.current!.signal,
           timeoutSignal,
         ]);
+        const fetchStart = Date.now();
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...getAuthHeader(),
           },
+          credentials: 'include', // 显式带 cookie（同源默认会带，但显式更稳）
           body: JSON.stringify({
             messages: messagesToSend,
             provider: 'hermes', // 接入 Windows 本机 Hermes Agent
@@ -462,6 +471,13 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           if (response.status === 401 || response.status === 403) {
             errorMsg = '请先登录后使用 AI 对话';
           }
+          // 立即更新徽章（让用户立刻看到后端 status）
+          setLastChatProbe({
+            status: response.status,
+            bodyLen: 0,
+            ms: Date.now() - fetchStart,
+            body: `status ${response.status} (error path)`,
+          });
           throw new Error(errorMsg);
         }
 
@@ -469,6 +485,13 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
         // 解析失败时直接显示原始 body（让用户看到后端实际返回）。
         try {
           const text = await response.text();
+          // 更新徽章（让用户看到完整 body 长度）
+          setLastChatProbe({
+            status: response.status,
+            bodyLen: text.length,
+            ms: Date.now() - fetchStart,
+            body: text.slice(0, 300),
+          });
           console.log('[AIDialog] /api/chat body 前 300:', text.slice(0, 300), '长度:', text.length);
           const lines = text.split('\n');
 
@@ -750,6 +773,21 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
             <span className="text-sm font-medium text-[var(--text-primary)] truncate">基于 MiniMax-M2.5</span>
             <span className="text-[10px] text-[var(--text-muted)] tracking-wider uppercase">SYSTEM READY</span>
+            {/* 最后一次 /api/chat 响应状态（自检徽章，让用户直接看到后端是否工作） */}
+            {lastChatProbe && (
+              <span
+                data-testid="chat-probe"
+                className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded font-mono flex-shrink-0',
+                  lastChatProbe.status === 200
+                    ? 'bg-green-500/15 text-green-400'
+                    : 'bg-red-500/15 text-red-400',
+                )}
+                title={lastChatProbe.body}
+              >
+                {lastChatProbe.status} · {lastChatProbe.bodyLen}B · {lastChatProbe.ms}ms
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {currentConversation && currentConversation.messages.length > 0 && (
