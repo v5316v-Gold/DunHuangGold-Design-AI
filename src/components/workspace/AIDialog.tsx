@@ -465,10 +465,11 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
           throw new Error(errorMsg);
         }
 
-        // 改为 response.text() 整体读取（消除 streaming 解析在某些浏览器/网络下的失败模式，
-        // 失去逐字符打字机效果，但保证兼容性 — 完整回复一次性出现）
+        // response.text() 整体读取 + 鲁棒 SSE 解析（content 累加）。
+        // 解析失败时直接显示原始 body（让用户看到后端实际返回）。
         try {
           const text = await response.text();
+          console.log('[AIDialog] /api/chat body 前 300:', text.slice(0, 300), '长度:', text.length);
           const lines = text.split('\n');
 
           for (const line of lines) {
@@ -478,9 +479,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
 
             try {
               const data = JSON.parse(dataStr) as Record<string, unknown>;
-
               if (data.type === 'conversation_id' && data.conversationId) {
-                // 保存服务器的 conversationId 到对话
                 serverConversationId = data.conversationId as string;
                 setConversations((prev) =>
                   prev.map((c) =>
@@ -489,7 +488,6 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
                 );
                 continue;
               }
-
               const content = data.content as string | undefined;
               if (content) {
                 hasContent = true;
@@ -510,6 +508,25 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
                     messages: c.messages.map((m) =>
                       m.id === assistantMessageId
                         ? { ...m, content: accumulatedContent }
+                        : m
+                    ),
+                  };
+                }
+                return c;
+              })
+            );
+          } else {
+            // 解析后没有任何 content 事件 → 兜底显示原始 body 前 500 字符
+            // （让用户看到后端实际返回了什么，便于排查）
+            const rawPreview = text.replace(/data:\s*/g, '').slice(0, 500) || '(空响应)';
+            setConversations((prev) =>
+              prev.map((c) => {
+                if (c.id === conversationId) {
+                  return {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId
+                        ? { ...m, content: `[未解析到 content 事件]\n${rawPreview}` }
                         : m
                     ),
                   };
