@@ -33,7 +33,6 @@ import {
   Wrench,
 } from 'lucide-react';
 import ApiSettingsView from '@/components/admin/ApiSettingsView';
-import ComfyUIConfigPanel from '@/components/admin/ComfyUIConfigPanel';
 import { usePageState } from '@/hooks/usePageState';
 import { getAuthHeader } from '@/hooks/useAuth';
 import { saveFeatureCosts, getAllFeatureCosts } from '@/lib/feature-costs';
@@ -697,7 +696,6 @@ export default function AdminPage() {
     { key: 'models', label: '模型中心', icon: Boxes },
     { key: 'api-settings', label: 'API设置', icon: Settings },
     { key: 'system-settings', label: '系统设置', icon: Shield },
-    { key: 'comfyui', label: 'ComfyUI 配置', icon: Wrench },
     { key: 'system', label: '系统健康', icon: Activity },
   ];
 
@@ -943,9 +941,6 @@ export default function AdminPage() {
 
           {/* 系统设置 */}
           {activeTab === 'system-settings' && <SystemSettingsSection activeTab={activeTab} />}
-
-          {/* ComfyUI 工作流配置 */}
-          {activeTab === 'comfyui' && <ComfyUIConfigPanel />}
 
           {/* 系统健康 - 直接 import（去 iframe）*/}
           {activeTab === 'system' && (

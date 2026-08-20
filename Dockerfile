@@ -42,7 +42,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=5000
 
 COPY --from=builder /app/.next/standalone ./
-# standalone 模式下静态资源在 .next/standalone/.next/static，自动包含
+# Next.js standalone 静态资源规则：
+#   1) 必须有顶层 .next/static（被 server.js 引用）
+#   2) 必须有 .next/standalone/.next/server/app-paths-manifest.json 等
+# 自动复制顶层 .next/static 是 necessary（之前漏 → CSS 404）
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
 # P0-1: 数据库迁移文件 + entrypoint（启动前自动迁移，幂等）
