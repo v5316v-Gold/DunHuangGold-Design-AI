@@ -10,6 +10,9 @@
  *   6. bumpTokenVersion → ver=2
  *   7. 上一版新 token（ver=1）也失效
  */
+// 必须在 import auth 之前设置 JWT_SECRET（auth.ts 模块顶层读取 process.env.JWT_SECRET 冻结）
+process.env.JWT_SECRET = 'test-secret-that-is-long-enough-for-32-chars-validation';
+
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { generateToken, verifyToken } from '@/lib/auth';
 import { getCurrentTokenVersion, bumpTokenVersion } from '@/lib/token-version';
@@ -20,6 +23,7 @@ import { eq } from 'drizzle-orm';
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000999';
 
 beforeAll(async () => {
+  // 兜底再设一次（防止其它测试文件在同 worker 内覆盖了 env）
   process.env.JWT_SECRET = 'test-secret-that-is-long-enough-for-32-chars-validation';
   // 确保测试用户存在（id 用固定 UUID 便于幂等）
   if (db) {
