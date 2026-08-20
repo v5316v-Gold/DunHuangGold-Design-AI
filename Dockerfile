@@ -28,6 +28,7 @@ ENV JWT_SECRET=${BUILD_JWT_SECRET}
 # API_KEY_ENCRYPTION_KEY 同理（64 位 hex 字符串）
 ARG BUILD_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
 ENV API_KEY_ENCRYPTION_KEY=${BUILD_ENCRYPTION_KEY}
+ENV NEXT_OUTPUT=standalone
 RUN pnpm build
 
 # ===== 阶段 3: 运行（仅 standalone） =====
@@ -41,7 +42,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=5000
 
 COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# standalone 模式下静态资源在 .next/standalone/.next/static，自动包含
 COPY --from=builder /app/public ./public
 
 # P0-1: 数据库迁移文件 + entrypoint（启动前自动迁移，幂等）
