@@ -108,6 +108,9 @@ function getDateBucket(d: Date): string {
 }
 
 export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
+  // 调试日志仅在 dev 输出（Next.js 构建时会把 process.env.NODE_ENV 内联为字面量）
+  const isDev = process.env.NODE_ENV !== 'production';
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -242,7 +245,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
         const dataUrl = await readFileAsDataUrl(file);
         uploadedImagesRef.current = [...uploadedImagesRef.current, dataUrl];
         setUploadedImages((prev) => [...prev, dataUrl]);
-        console.log(`[AIDialog] 图片上传成功: ${file.name}, 大小: ${(file.size / 1024).toFixed(1)}KB`);
+        if (isDev) console.log(`[AIDialog] 图片上传成功: ${file.name}, 大小: ${(file.size / 1024).toFixed(1)}KB`);
       } catch (error) {
         console.error('[AIDialog] 图片上传失败:', error);
         alert(`图片上传失败: ${(error as Error).message}`);
@@ -344,14 +347,16 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
     const trimmedInput = input.trim();
     const hasImages = currentImages.length > 0;
 
-    // 调试日志：确认图片是否正确捕获
-    if (hasImages) {
-      console.log(`[AIDialog] 发送消息：文字 + ${currentImages.length} 张图片`);
-      currentImages.forEach((img, i) => {
-        console.log(`  图片${i + 1}: ${img.substring(0, 50)}... (总长度: ${img.length})`);
-      });
-    } else {
-      console.log('[AIDialog] 发送消息：纯文字（currentImages 为空）');
+    // 调试日志：确认图片是否正确捕获（仅 dev 输出）
+    if (isDev) {
+      if (hasImages) {
+        console.log(`[AIDialog] 发送消息：文字 + ${currentImages.length} 张图片`);
+        currentImages.forEach((img, i) => {
+          console.log(`  图片${i + 1}: ${img.substring(0, 50)}... (总长度: ${img.length})`);
+        });
+      } else {
+        console.log('[AIDialog] 发送消息：纯文字（currentImages 为空）');
+      }
     }
 
     // 用于 UI 展示的纯文本内容（图片单独渲染，不用占位符）
@@ -492,7 +497,7 @@ export default function AIDialog({ power, onDeductPower }: AIDialogProps) {
             ms: Date.now() - fetchStart,
             body: text.slice(0, 300),
           });
-          console.log('[AIDialog] /api/chat body 前 300:', text.slice(0, 300), '长度:', text.length);
+          if (isDev) console.log('[AIDialog] /api/chat body 前 300:', text.slice(0, 300), '长度:', text.length);
           const lines = text.split('\n');
 
           for (const line of lines) {

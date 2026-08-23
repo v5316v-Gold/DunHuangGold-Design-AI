@@ -4,7 +4,12 @@ import { vi } from 'vitest';
 // ============================================================
 // 环境变量 mocks
 // ============================================================
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+// 测试环境复用本地 dev DB（dunhuang1/dunhuang2026）。
+// 原占位 'postgresql://test:test@localhost:5432/test' 在容器化后
+// 找不到 test 用户，全部报 'password authentication failed for user test'。
+// 复用 dev DB 是 O5 阶段最务实的修复，副作用是测试可能写少量幂等测试数据。
+process.env.DATABASE_URL = process.env.DATABASE_URL_TEST
+  || 'postgresql://dunhuang1:dunhuang2026@localhost:5432/dunhuang';
 // JWT_SECRET 必须 >= 32 字符，否则 auth.ts 会拒绝启动
 process.env.JWT_SECRET = 'test-secret-that-is-long-enough-for-jwt-validation-32chars';
 process.env.NODE_ENV = 'test';
