@@ -41,7 +41,8 @@ test.describe('错误恢复', () => {
     await expect(page.getByTestId('generate-error')).toBeVisible({ timeout: 30_000 });
   });
 
-  test('ComfyUI 配置面板：接口异常时仍渲染列表（不崩溃）', async ({ page }) => {
+  // ⚠️ TODO(admin refactor): commit 3a1f373 移除了 admin ComfyUI 配置 tab，待回归后启用
+  test.skip('ComfyUI 配置面板：接口异常时仍渲染列表（不崩溃）', async ({ page }) => {
     // 拦截 ComfyUI 健康/配置接口 → 500
     await page.route('**/api/comfyui', (route) =>
       route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })

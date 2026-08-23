@@ -8,11 +8,17 @@
  *   4. 保存后编辑态关闭，显示已保存的 Workflow ID（真实反馈）
  *
  * 前置：global-setup 已登录 admin 账号并保存 storageState。
+ *
+ * ⚠️ TODO(admin refactor): commit 3a1f373 移除了 admin/page.tsx 的 comfyui tab
+ * 与 ComfyUIConfigPanel 引用（理由：重复面板清理），但未同步更新此 E2E。
+ * 在重新引入 comfyui tab 之前，先 skip 这些测试。
+ * 替代功能：admin/system 页有 "ComfyUI 生图服务" 健康检查 tab（不测 workflow 配置）。
  */
 import { test, expect } from '@playwright/test';
 
 test.describe('后台 ComfyUI 工作流配置', () => {
-  test('配置文生图 workflow ID：填写并保存后显示已配置', async ({ page }) => {
+  test.skip('配置文生图 workflow ID：填写并保存后显示已配置', async ({ page }) => {
+    // 等待 admin ComfyUI 配置 tab 回归后启用
     await page.goto('/admin');
 
     // 点击侧边栏「ComfyUI 配置」标签

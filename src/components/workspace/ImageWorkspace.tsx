@@ -8,7 +8,7 @@ import { SingleImageUploadBox } from '@/components/ui/SingleImageUploadBox';
 import { getTaskCost } from '@/lib/power';
 import { cn } from '@/lib/utils';
 import { callApi } from '@/lib/api-service';
-import { getAuthHeader } from '@/lib/auth-client';
+import { useTaskPolling } from '@/hooks/useTaskPolling';
 import { WorkspaceProps } from '@/constants/workspace';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -99,6 +99,7 @@ export function ImageWorkspace({ power, onDeductPower, config }: ImageWorkspaceP
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<Set<string>>(new Set());
+  const { startPolling } = useTaskPolling();
 
   const toggleSelect = (id: string) => {
     setSelectedHistory(prev => {
@@ -157,55 +158,30 @@ export function ImageWorkspace({ power, onDeductPower, config }: ImageWorkspaceP
 
       const respData = response.data as { taskId?: string; statusUrl?: string } | undefined;
 
-      // 异步任务模式：拿 taskId 轮询直至 completed
+      // 异步任务模式：调用公共 hook 轮询直至 completed
       if (response.success && respData?.taskId) {
         const pollTaskId = String(respData.taskId);
         setTaskId(pollTaskId);
-        const statusUrl = String(respData.statusUrl || `/api/tasks/${pollTaskId}`);
-        const POLL_INTERVAL = 2000;
-        const MAX_POLLS = 300; // 10 分钟上限
+        const taskData = await startPolling(pollTaskId);
+        // 按归一化契约解包 output：图片结果用 imageUrl（含 artifacts 兜底）
+        const output = (taskData?.output as Record<string, any>) ?? {};
+        const artifacts = Array.isArray(output.artifacts) ? output.artifacts : [];
+        const images = artifacts.map((a: any) => a?.url).filter(Boolean) as string[];
+        const imageUrl = (output.imageUrl as string) ?? images[0] ?? null;
+        if (!imageUrl) throw new Error('任务完成但未返回图片');
 
-        for (let i = 0; i < MAX_POLLS; i++) {
-          await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-          try {
-            const pollRes = await fetch(statusUrl, { headers: { ...getAuthHeader() } });
-            if (!pollRes.ok) {
-              if (pollRes.status >= 500) continue; // 5xx 重试
-              throw new Error(`轮询任务失败: HTTP ${pollRes.status}`);
-            }
-            const pollJson = await pollRes.json();
-            const taskData = pollJson?.data ?? pollJson;
-            const status = String(taskData?.status ?? '');
+        setResult(imageUrl);
+        const newItem: HistoryItem = {
+          id: Date.now().toString(),
+          imageUrl,
+          resolution,
+          ratio,
+          timestamp: new Date(),
+        };
+        setHistory((prev) => [newItem, ...prev]);
 
-            if (status === 'completed') {
-              // 按归一化契约解包 output：图片结果用 imageUrl（含 artifacts 兜底）
-              const output = (taskData?.output as Record<string, any>) ?? {};
-              const artifacts = Array.isArray(output.artifacts) ? output.artifacts : [];
-              const images = artifacts.map((a: any) => a?.url).filter(Boolean) as string[];
-              const imageUrl = (output.imageUrl as string) ?? images[0] ?? null;
-              if (!imageUrl) throw new Error('任务完成但未返回图片');
-
-              setResult(imageUrl);
-              const newItem: HistoryItem = {
-                id: Date.now().toString(),
-                imageUrl,
-                resolution,
-                ratio,
-                timestamp: new Date(),
-              };
-              setHistory((prev) => [newItem, ...prev]);
-
-              onDeductPower(cost, config.deductReason);
-              return;
-            }
-            if (status === 'failed' || status === 'dead_letter') {
-              throw new Error(String(taskData?.error ?? '任务失败'));
-            }
-          } catch (pollErr) {
-            if (i > 5) throw pollErr; // 前 5 次轮询容错
-          }
-        }
-        throw new Error('任务超时(10分钟未完成)');
+        onDeductPower(cost, config.deductReason);
+        return;
       }
 
       // 同步模式兜底（老接口直接返回结果 URL 或 { imageUrl, artifacts }）
