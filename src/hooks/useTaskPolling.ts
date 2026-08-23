@@ -33,7 +33,10 @@ export interface UseTaskPollingOptions {
 
 export interface UseTaskPollingReturn {
   /** 启动轮询；返回 Promise，completed 时 resolve taskData，failed 时 reject Error */
-  startPolling: (taskId: string) => Promise<Record<string, unknown>>;
+  startPolling: (
+    taskId: string,
+    overrides?: { onProgress?: UseTaskPollingOptions['onProgress'] }
+  ) => Promise<Record<string, unknown>>;
 }
 
 /**
@@ -41,16 +44,28 @@ export interface UseTaskPollingReturn {
  * 或 failed / dead_letter（reject Error）。支持中途 abort。
  */
 export function useTaskPolling(opts: UseTaskPollingOptions = {}): UseTaskPollingReturn {
-  const { onProgress, signal, intervalMs = 2000, maxAttempts = 300 } = opts;
+  // 支持两种调用方式：
+  //   startPolling(taskId) - 全局 options
+  //   startPolling(taskId, { onProgress }) - 每次调用覆盖 options
+  const globalOpts = opts;
+  const { onProgress, signal, intervalMs = 2000, maxAttempts = 300 } = globalOpts;
   // 用 ref + useEffect 让回调始终是最新的，避免轮询循环里 capture 旧 closure。
-  // ref 赋值必须在 commit 阶段，不能放在 render body 里。
   const onProgressRef = useRef(onProgress);
   useEffect(() => {
     onProgressRef.current = onProgress;
   }, [onProgress]);
+  // 覆盖用回调 ref（每次 startPolling 调用的 overrides.onProgress）
+  const overrideCbRef = useRef<UseTaskPollingOptions['onProgress']>(undefined);
+  useEffect(() => {
+    overrideCbRef.current = undefined;
+  });
 
   const startPolling = useCallback(
-    async (taskId: string): Promise<Record<string, unknown>> => {
+    async (
+      taskId: string,
+      overrides?: { onProgress?: UseTaskPollingOptions['onProgress'] }
+    ): Promise<Record<string, unknown>> => {
+      overrideCbRef.current = overrides?.onProgress;
       const statusUrl = `/api/tasks/${taskId}`;
       let consecutiveErrors = 0;
 
@@ -63,7 +78,6 @@ export function useTaskPolling(opts: UseTaskPollingOptions = {}): UseTaskPolling
         try {
           const pollRes = await fetch(statusUrl, { headers: { ...getAuthHeader() } });
           if (!pollRes.ok) {
-            // 5xx 网络抖动 → 重试（前 5 次容错）
             if (pollRes.status >= 500 && consecutiveErrors < 5) {
               consecutiveErrors++;
               continue;
@@ -76,17 +90,16 @@ export function useTaskPolling(opts: UseTaskPollingOptions = {}): UseTaskPolling
           const taskData = (pollJson?.data ?? pollJson) as Record<string, unknown>;
           const status = String(taskData?.status ?? '') as TaskStatusKind;
           onProgressRef.current?.(status, taskData);
+          overrideCbRef.current?.(status, taskData);
 
           if (status === 'completed') return taskData;
           if (status === 'failed' || status === 'dead_letter') {
             throw new Error(String(taskData?.error ?? '任务失败'));
           }
-          // pending / processing 继续轮询
         } catch (err) {
           if (err instanceof DOMException && err.name === 'AbortError') throw err;
           if (consecutiveErrors >= 5) throw err;
           consecutiveErrors++;
-          // 其他异常暂存，下一轮重试
           if (i === maxAttempts - 1) throw err;
         }
       }
