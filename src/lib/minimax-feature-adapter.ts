@@ -27,6 +27,58 @@ import type {
 
 type MinimaxHandler = (req: ExecutorRequest) => Promise<ExecutorResult>;
 
+/**
+ * O10 通用兜底：free / oneclick 等"文生图"类用 MiniMax image-01
+ * 输入：req.inputs.prompt（必填）+ 可选 model / n
+ * 输出：图片 URL 作为 artifact
+ */
+async function minimaxImageHandler(req: ExecutorRequest, featureId: string): Promise<ExecutorResult> {
+  const inputs = req.inputs || {};
+  const prompt = String(inputs.prompt || inputs.message || '').trim();
+  if (!prompt) {
+    return {
+      success: false,
+      executorUsed: 'third-party',
+      error: { code: 'INVALID_INPUT', message: `${featureId} 需要 prompt 字段`, retryable: false },
+      cost: 0, latencyMs: 0, traceId: req.traceId,
+    };
+  }
+  try {
+    const r = await minimaxImageGen({
+      prompt,
+      n: Number(inputs.n) || 1,
+      userId: req.userId,
+      featureId,
+    });
+    if (r.success && r.data?.image_urls?.length) {
+      const urls = r.data.image_urls;
+      return {
+        success: true,
+        executorUsed: 'third-party',
+        provider: 'minimax',
+        cost: 0,
+        latencyMs: 0,
+        traceId: req.traceId,
+        artifacts: urls.map((url: string) => ({ url, mime: 'image/*' })),
+      };
+    }
+    return {
+      success: false,
+      executorUsed: 'third-party',
+      provider: 'minimax',
+      error: { code: r.error?.includes('quota') ? 'QUOTA_EXCEEDED' : 'MINIMAX_FAILED', message: r.error || '生成失败', retryable: true },
+      cost: 0, latencyMs: 0, traceId: req.traceId,
+    };
+  } catch (e) {
+    return {
+      success: false,
+      executorUsed: 'third-party',
+      error: { code: 'MINIMAX_FAILED', message: (e as Error).message || '调用失败', retryable: true },
+      cost: 0, latencyMs: 0, traceId: req.traceId,
+    };
+  }
+}
+
 const NOT_SUPPORTED = (
   req: ExecutorRequest,
   feature: string
@@ -245,8 +297,9 @@ const HANDLERS: Record<string, MinimaxHandler> = {
   stereo: (req) => Promise.resolve(NOT_SUPPORTED(req, 'stereo')),
   // 创作类
   multiview: (req) => Promise.resolve(NOT_SUPPORTED(req, 'multiview')),
-  oneclick: (req) => Promise.resolve(NOT_SUPPORTED(req, 'oneclick')),
-  free: (req) => Promise.resolve(NOT_SUPPORTED(req, 'free')),
+  // O10：free / oneclick 走 MiniMax image-01 文生图（通用兜底，原返回 NOT_SUPPORTED）
+  oneclick: (req) => minimaxImageHandler(req, 'oneclick'),
+  free: (req) => minimaxImageHandler(req, 'free'),
   // 试穿
   tryon: (req) => Promise.resolve(NOT_SUPPORTED(req, 'tryon')),
 };
