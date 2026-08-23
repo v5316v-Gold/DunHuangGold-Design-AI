@@ -1,13 +1,28 @@
 /**
  * Phase 9.20 · Minimax 框架单元测试
  */
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 
 import * as dotenv from 'dotenv';
 import * as path from 'node:path';
 
-// 加载 .env.local（拿真实 MINIMAX_API_KEY）
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+// 加载 .env（拿真实 MINIMAX_API_KEY）；O5 起改用 .env，不再依赖 .env.local
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
+// setup.ts 把 global.fetch mock 掉了（global.fetch = vi.fn()），这个文件要测真 MiniMax API
+// 但 REAL_FETCH = global.fetch 在 setupFiles 之后已经是被 mock 的值。
+// 用 vi.stubGlobal 把 fetch 替换回 native；用 try/finally 确保不污染其他测试文件。
+import { vi } from 'vitest';
+let restoreFetch: (() => void) | null = null;
+beforeAll(() => {
+  restoreFetch = vi.stubGlobal('fetch', (...args: Parameters<typeof fetch>) =>
+    // @ts-expect-error - 调用原生 fetch
+    Reflect.get(globalThis, 'fetch').apply(globalThis, args)
+  );
+});
+afterAll(() => {
+  restoreFetch?.();
+});
 
 beforeAll(() => {
   process.env.MINIMAX_API_BASE = process.env.MINIMAX_API_BASE || 'https://api.minimax.chat/v1';
