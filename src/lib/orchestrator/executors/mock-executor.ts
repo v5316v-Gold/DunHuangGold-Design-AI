@@ -1,4 +1,6 @@
-import type { Executor, FeatureExecutionRequest, FeatureExecutionResult } from '../types';
+// O9 合并双 orchestrator
+import type { Executor } from '@/lib/ai/ports/executor.port';
+import type { FeatureExecutionRequest, FeatureExecutionResult } from '../types';
 import { FEATURE_LIST } from '@/config/features';
 
 /**
@@ -10,7 +12,8 @@ import { FEATURE_LIST } from '@/config/features';
  */
 export class MockExecutor implements Executor {
   readonly type = 'mock' as const;
-  readonly id = 'mock-local';
+  readonly id = 'mock';
+  readonly productionSafe = false; // ADR-010: mock 仅限非生产
 
   capabilities() {
     return new Set(FEATURE_LIST.map((feature) => feature.id));

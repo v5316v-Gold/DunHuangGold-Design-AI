@@ -11,7 +11,8 @@
  *  - 失败码 HERMES_UNAVAILABLE/HERMES_TIMEOUT/HERMES_FAILED 全部 retryable=true
  *    便于 orchestrator 路由 fallback 至 third-party（Minimax）
  */
-import type { Executor, FeatureExecutionRequest, FeatureExecutionResult } from '../types';
+import type { Executor } from '@/lib/ai/ports/executor.port';
+import type { FeatureExecutionRequest, FeatureExecutionResult } from '../types';
 import { spawn } from 'child_process';
 import { callHermesAgent, HermesAgentError } from '@/lib/hermes-agent';
 
@@ -20,7 +21,8 @@ export const HERMES_CHAT_FEATURES = new Set<string>(['dialogue']);
 
 export class HermesAgentExecutor implements Executor {
   readonly type = 'hermes' as const;
-  readonly id = 'hermes-agent-local';
+  readonly id = 'hermes';
+  readonly productionSafe = true;
 
   capabilities(): Set<string> {
     return HERMES_CHAT_FEATURES;

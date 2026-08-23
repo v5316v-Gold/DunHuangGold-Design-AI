@@ -8,7 +8,11 @@
  *  - 用户入参仅 featureId + inputs（不含 workflowId/model/lora/controlnet）
  *  - 实际 workflow/model 由 ExecutionPlan 冻结（创建时快照，运行时不变）
  */
-import type { Executor, FeatureExecutionRequest, FeatureExecutionResult } from '../types';
+// O9 合并双 orchestrator：types.ts 保留作为老 executor 兼容层（FeatureExecutionRequest/Result
+// 与新 Port 的 ExecutorRequest/ExecutorResult 字段兼容，只缺 plan/requestId/_feature）。
+// Executor 接口直接用新 Port 的（老 Executor 字段是新 Executor 的子集）。
+import type { Executor } from '@/lib/ai/ports/executor.port';
+import type { FeatureExecutionRequest, FeatureExecutionResult } from '../types';
 import { callComfyUI } from '@/lib/comfyui-call-service';
 
 // 16 设计类功能 id（与 features 表 default_executor='comfyui' 对齐）
@@ -22,7 +26,8 @@ export const COMFYUI_DESIGN_FEATURES = new Set<string>([
 
 export class ComfyUIExecutor implements Executor {
   readonly type = 'comfyui' as const;
-  readonly id = 'comfyui-local';
+  readonly id = 'comfyui';
+  readonly productionSafe = true;
 
   capabilities(): Set<string> {
     // 16 设计类（明确排除 dialogue → HermesAgentExecutor）
