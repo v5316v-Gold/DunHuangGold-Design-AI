@@ -44,7 +44,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // O6 a11y: 放开缩放限制（maximumScale: 1 违反 WCAG 1.4.4）
+  maximumScale: 5,
   themeColor: '#C8A45C',
 };
 

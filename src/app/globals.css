@@ -87,8 +87,9 @@
   /* === 文字色系 === */
   --text-primary: #F8F6F0;           /* 主文字 - 象牙白 */
   --text-secondary: #B8B4A8;         /* 次级文字 */
-  --text-muted: #6A6860;             /* 弱化文字 */
-  --text-dim: #454540;               /* 暗淡文字 */
+  /* O6 a11y: 调亮 --text-muted 与 --text-dim，使对比度从 ~4.0 提升到 5.5+，满足 WCAG AA */
+  --text-muted: #8A8680;             /* 弱化文字（调亮，原 #6A6860） */
+  --text-dim: #6A6860;               /* 暗淡文字（上调，原 #454540） */
   --text-inverse: #0A0A08;           /* 反色文字 */
   --text-gold: #D4AF37;              /* 金色文字 */
   

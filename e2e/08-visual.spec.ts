@@ -35,3 +35,29 @@ test.describe('视觉回归 · 登录页（未登录态）', () => {
     });
   });
 });
+
+// O7 扩展基线：17 个工作面板各一张快照。
+// 静态元素（sidebar + panel content），避开含动态时间戳/动画的区域。
+// 生成：npx playwright test e2e/08-visual.spec.ts -g "面板快照" --update-snapshots
+const WORKSPACE_PANELS = [
+  'text2img', 'dialogue', 'relief', 'image3d', '2dto3d', 'refine',
+  'blend', 'oneclick', 'multiview', 'sketch', 'free', 'tryon',
+  'text2video', 'img2video', 'removebg', 'upscale', 'watermark',
+] as const;
+
+for (const panelId of WORKSPACE_PANELS) {
+  test(`面板快照: ${panelId}`, async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId(`feature-${panelId}`).click();
+    await expect(page.getByTestId(`feature-${panelId}`)).toBeVisible({ timeout: 30_000 });
+    // 等动画 + 内容渲染稳定
+    await page.waitForTimeout(500);
+    // 截 sidebar（左侧菜单），避开含动态时间戳的对话区
+    const sidebar = page.locator('aside').first();
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar).toHaveScreenshot(`panel-${panelId}.png`, {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.05,
+    });
+  });
+}
