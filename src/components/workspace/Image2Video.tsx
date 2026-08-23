@@ -9,7 +9,7 @@ import { Upload, Download, RefreshCw, Video, Play, Pause, X, Clock, Info, Image 
 import { getTaskCost } from '@/lib/power';
 import { cn } from '@/lib/utils';
 import { callApi } from '@/lib/api-service';
-import { getAuthHeader } from '@/lib/auth-client';
+import { useTaskPolling } from '@/hooks/useTaskPolling';
 import { PromptInput } from '@/components/ui/PromptInput';
 import { WorkspaceProps } from '@/constants/workspace';
 
@@ -114,6 +114,7 @@ export default function Image2Video({ power, onDeductPower }: WorkspaceProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const cost = getTaskCost('img2video');
+  const { startPolling } = useTaskPolling();
 
   const handleImageUpload = (type: 'start' | 'end') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -195,62 +196,40 @@ export default function Image2Video({ power, onDeductPower }: WorkspaceProps) {
 
       const respData = response.data as { taskId?: string; statusUrl?: string } | undefined;
 
-      // 异步任务模式：拿 taskId 轮询直至 completed
+      // 异步任务模式：调用公共 hook 轮询直至 completed
       if (response.success && respData?.taskId) {
         const pollTaskId = String(respData.taskId);
         setTaskId(pollTaskId);
-        const statusUrl = String(respData.statusUrl || `/api/tasks/${pollTaskId}`);
-        const POLL_INTERVAL = 2000;
-        const MAX_POLLS = 300; // 10 分钟上限
-
-        for (let i = 0; i < MAX_POLLS; i++) {
-          await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-          try {
-            const pollRes = await fetch(statusUrl, { headers: { ...getAuthHeader() } });
-            if (!pollRes.ok) {
-              if (pollRes.status >= 500) continue; // 5xx 重试
-              throw new Error(`轮询任务失败: HTTP ${pollRes.status}`);
-            }
-            const pollJson = await pollRes.json();
-            const taskData = pollJson?.data ?? pollJson;
-            const status = String(taskData?.status ?? '');
-            const progress = Number(taskData?.progress ?? 0);
+        const taskData = await startPolling(pollTaskId, {
+          onProgress: (_status, td) => {
+            const progress = Number(td?.progress ?? 0);
             if (Number.isFinite(progress) && progress > 0) setProgress(progress);
+          },
+        });
+        // 按归一化契约解包 output：视频结果用 videoUrl，无则回退 imageUrl 封面
+        const output = (taskData?.output as Record<string, any>) ?? {};
+        const artifacts = Array.isArray(output.artifacts) ? output.artifacts : [];
+        const images = artifacts.map((a: any) => a?.url).filter(Boolean) as string[];
+        const imageUrl = (output.imageUrl as string) ?? images[0] ?? null;
+        const videoUrl = (output.videoUrl as string) ?? null;
+        const finalUrl = videoUrl || imageUrl;
+        if (!finalUrl) throw new Error('任务完成但未返回视频结果');
 
-            if (status === 'completed') {
-              // 按归一化契约解包 output：视频结果用 videoUrl，无则回退 imageUrl 封面
-              const output = (taskData?.output as Record<string, any>) ?? {};
-              const artifacts = Array.isArray(output.artifacts) ? output.artifacts : [];
-              const images = artifacts.map((a: any) => a?.url).filter(Boolean) as string[];
-              const imageUrl = (output.imageUrl as string) ?? images[0] ?? null;
-              const videoUrl = (output.videoUrl as string) ?? null;
-              const finalUrl = videoUrl || imageUrl;
-              if (!finalUrl) throw new Error('任务完成但未返回视频结果');
-
-              setProgress(100);
-              setResult(finalUrl);
-              const newItem: HistoryItem = {
-                id: Date.now().toString(),
-                videoUrl: finalUrl,
-                startImageUrl: startImage,
-                endImageUrl: endImage,
-                prompt: prompt || '图生视频',
-                resolution,
-                ratio,
-                timestamp: new Date(),
-              };
-              setHistory((prev) => [newItem, ...prev]);
-              onDeductPower(cost, '图生视频');
-              return;
-            }
-            if (status === 'failed' || status === 'dead_letter') {
-              throw new Error(String(taskData?.error ?? '任务失败'));
-            }
-          } catch (pollErr) {
-            if (i > 5) throw pollErr; // 前 5 次轮询容错
-          }
-        }
-        throw new Error('任务超时(10分钟未完成)');
+        setProgress(100);
+        setResult(finalUrl);
+        const newItem: HistoryItem = {
+          id: Date.now().toString(),
+          videoUrl: finalUrl,
+          startImageUrl: startImage,
+          endImageUrl: endImage,
+          prompt: prompt || '图生视频',
+          resolution,
+          ratio,
+          timestamp: new Date(),
+        };
+        setHistory((prev) => [newItem, ...prev]);
+        onDeductPower(cost, '图生视频');
+        return;
       }
 
       // 同步模式兜底（老接口直接返回结果 URL）
