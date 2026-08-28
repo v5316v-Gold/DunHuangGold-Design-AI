@@ -175,6 +175,8 @@ export class PolicyOrchestrator {
     const trace = createExecutionTrace(plan);
 
     // 4. 执行链：主执行器 → 兜底链（fallback-policy）
+    //    2026-08-20 P3 路由策略：进入 execute 前先 isAvailable() 预检，
+    //    不可用（端口挂、网络断、API 4xx/5xx）直接跳过该 executor，避免 120s 超时噪声。
     let attempt = 0;
     let currentExecutor: ExecutorType | null = plan.executorId;
     while (currentExecutor) {
@@ -192,6 +194,39 @@ export class PolicyOrchestrator {
         });
         const fb = decideFallback(plan, trace);
         currentExecutor = fb.nextExecutor;
+        continue;
+      }
+
+      // P3 路由预检：executor 不可用 → 跳过（不入 execute）
+      // 例：ComfyUI 端口挂掉时直接切 cloud；Cloud API key 缺失时直接切 mock
+      try {
+        if (executor.isAvailable && !(await executor.isAvailable())) {
+          trace.attempted.push({
+            executorId: currentExecutor,
+            success: false,
+            errorCode: 'EXECUTOR_UNAVAILABLE',
+            latencyMs: 0,
+            at: new Date().toISOString(),
+          });
+          const fb = decideFallback(plan, trace);
+          if (fb.exhausted) break;
+          currentExecutor = fb.nextExecutor as ExecutorType;
+          attempt += 1;
+          continue;
+        }
+      } catch {
+        // 预检本身抛错（网络异常等）也按不可用处理
+        trace.attempted.push({
+          executorId: currentExecutor,
+          success: false,
+          errorCode: 'EXECUTOR_UNAVAILABLE',
+          latencyMs: 0,
+          at: new Date().toISOString(),
+        });
+        const fb = decideFallback(plan, trace);
+        if (fb.exhausted) break;
+        currentExecutor = fb.nextExecutor as ExecutorType;
+        attempt += 1;
         continue;
       }
 

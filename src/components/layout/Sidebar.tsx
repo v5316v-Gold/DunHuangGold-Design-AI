@@ -103,6 +103,7 @@ function getDisplayGroup(id: string): string {
   if (['relief', 'image3d', '2dto3d'].includes(id)) return '浮雕圆雕';
   if (['text2video', 'img2video'].includes(id)) return '生成视频';
   if (['removebg', 'upscale', 'watermark', 'tryon'].includes(id)) return '实用工具';
+  // dialogue 归入"灵感与创作"，并通过 order=0 在组内排第一
   return '灵感与创作';
 }
 
@@ -122,16 +123,15 @@ function buildMenuGroups(features: PublicFeature[]) {
     if (!groups[group]) groups[group] = [];
     groups[group].push(f);
   }
-  // 固定分组顺序 + dialogue 总是置顶
-  const order = ['对话', '浮雕圆雕', '灵感与创作', '生成视频', '实用工具'];
-  const dialogue = (groups['对话'] || []).slice();
-  const others = order.filter((k) => k !== '对话' && groups[k]).map((k) => ({
-    title: k,
-    items: groups[k].sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)),
-  }));
-  return dialogue.length > 0
-    ? [{ title: '对话', items: dialogue }, ...others]
-    : others;
+  // 固定分组顺序；组内按 features.sortOrder 排序（DB features 表字段名）
+  // （静态 fallback 的 FEATURE_LIST 用 order 字段，DB 用 sortOrder，两者都兼容）
+  const order = ['灵感与创作', '浮雕圆雕', '生成视频', '实用工具'];
+  return order
+    .filter((k) => groups[k]?.length)
+    .map((k) => ({
+      title: k,
+      items: groups[k].sort((a, b) => (a.sortOrder ?? a.order ?? 99) - (b.sortOrder ?? b.order ?? 99)),
+    }));
 }
 
 interface SidebarProps {

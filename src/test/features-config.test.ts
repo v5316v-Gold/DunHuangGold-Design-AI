@@ -39,17 +39,23 @@ describe('features.ts', () => {
       expect(FEATURE_LIST).toHaveLength(17);
     });
 
-    it('should have sequential order values', () => {
-      FEATURE_LIST.forEach((f, i) => {
-        expect(f.order).toBe(i + 1);
-      });
+    it('should have dialogue at order 0 (灵感与创作组内置顶，DB sortOrder=0 同步生效)', () => {
+      // 2026-08-20 设计变更：dialogue 归入「灵感与创作」分组并置顶，
+      // FEATURE_LIST 中 order=0 表示「Sidebar 渲染优先级最高」，
+      // DB features 表 sort_order 也保持 0 保证一致性。
+      // 其余 16 个功能保持 1-16 顺序连续（tryon=16）。
+      const dialogueEntry = FEATURE_LIST.find(f => f.id === 'dialogue');
+      expect(dialogueEntry).toBeDefined();
+      expect(dialogueEntry?.order).toBe(0);
     });
 
-    it('should include tryon with order 17', () => {
-      // 2026-08-03 闭环:佩戴效果 (tryon) 加入功能列表
-      const tryonEntry = FEATURE_LIST.find(f => f.id === 'tryon');
-      expect(tryonEntry).toBeDefined();
-      expect(tryonEntry?.order).toBe(17);
+    it('should have sequential order values 1-16 for non-dialogue features', () => {
+      // 排除 dialogue 后，其他 16 个 feature 应保持 1-16 连续顺序
+      const nonDialogue = FEATURE_LIST.filter(f => f.id !== 'dialogue');
+      expect(nonDialogue).toHaveLength(16);
+      nonDialogue.forEach((f, i) => {
+        expect(f.order).toBe(i + 1);
+      });
     });
 
     it('should reference valid feature ids', () => {

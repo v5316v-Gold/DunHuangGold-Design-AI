@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 敦煌金 AI 平台 - 自签 TLS 证书生成(W4)
+# 敦煌�?AI 平台 - 自签 TLS 证书生成(W4)
 #
 # 用法:
 #   bash deploy/gen-selfsigned.sh [--host=192.168.1.10] [--days=365]
@@ -9,7 +9,7 @@
 # 产物:
 #   ./ssl/server.crt
 #   ./ssl/server.key
-#   ./ssl/dhparam.pem(可选,加速 ECDHE)
+#   ./ssl/dhparam.pem(可�?加�?ECDHE)
 # ============================================================
 
 set -euo pipefail
@@ -48,7 +48,7 @@ mkdir -p "$CERT_DIR"
 echo "==== 自签证书生成 ===="
 echo "  路径: $CERT_DIR"
 echo "  域名: ${HOSTS[*]}"
-echo "  有效期: ${DAYS} 天"
+echo "  有效�? ${DAYS} �?
 
 # 拼接 SAN entries
 SAN_ENTRIES=()
@@ -80,7 +80,7 @@ openssl req -new -x509 \
   -addext "keyUsage=digitalSignature,keyEncipherment" \
   -addext "extendedKeyUsage=serverAuth" 2>/dev/null
 
-# 3. 生成 dhparam(可选,nginx 上 TLSv1.3 默认用 ECDHE,无需 dhparam)
+# 3. 生成 dhparam(可�?nginx �?TLSv1.3 默认�?ECDHE,无需 dhparam)
 if [[ "${GEN_DHPARAM:-0}" == "1" ]]; then
   openssl dhparam -out "$CERT_DIR/dhparam.pem" 2048 2>/dev/null
 fi
@@ -89,11 +89,11 @@ echo ""
 echo "==== 生成完成 ===="
 ls -la "$CERT_DIR"
 echo ""
-echo "==== nginx 中挂载 ===="
+echo "==== nginx 中挂�?===="
 echo "  docker run -p 443:443 -p 80:80 \\"
 echo "    -v \$(pwd)/$CERT_DIR:/etc/nginx/ssl:ro \\"
 echo "    -v \$(pwd)/nginx.conf:/etc/nginx/nginx.conf:ro \\"
 echo "    --network dunhuang-net nginx:1.27-alpine"
 echo ""
-echo "⚠️  浏览器访问会有 '不安全' 警告(自签证书),需要 '高级' → '继续前往'。"
+echo "⚠️  浏览器访问会�?'不安�? 警告(自签证书),需�?'高级' �?'继续前往'�?
 echo "   生产请用: certbot certonly --webroot -w /var/www/certbot -d your.domain"

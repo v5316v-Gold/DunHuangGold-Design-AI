@@ -194,11 +194,29 @@ describe('PolicyOrchestrator · 策略驱动执行', () => {
 describe('PolicyOrchestrator · 生产守卫与异常路径（P1 补测）', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  function makeExecutor(id: 'third-party' | 'comfyui' | 'mock', opts: { fail?: boolean; throwErr?: boolean; supports?: string[] } = {}) {
+  function makeExecutor(id: 'third-party' | 'comfyui' | 'mock', opts: {
+    fail?: boolean;
+    throwErr?: boolean;
+    retryable?: boolean;
+    supports?: string[];
+    /** 路由预检：false → 跳过该 executor，不进入 execute（模拟本地 ComfyUI 挂掉） */
+    available?: boolean;
+    /** 预检本身抛错（网络异常） */
+    isAvailableThrow?: boolean;
+  } = {}) {
     const ex: Executor = {
       id,
       productionSafe: id !== 'mock',
       capabilities: () => new Set(opts.supports ?? ['text2img']),
+      // isAvailable 仅在 opts 中显式声明 available/isAvailableThrow 时定义，否则无此方法
+      ...(opts.available !== undefined || opts.isAvailableThrow
+        ? {
+            isAvailable: async () => {
+              if (opts.isAvailableThrow) throw new Error('health probe failed');
+              return opts.available !== false;
+            },
+          }
+        : {}),
       execute: vi.fn(async () => {
         if (opts.throwErr) {
           throw new Error('boom: connection refused');
@@ -206,7 +224,7 @@ describe('PolicyOrchestrator · 生产守卫与异常路径（P1 补测）', () 
         if (opts.fail) {
           return {
             success: false,
-            error: { code: 'PROVIDER_UNAVAILABLE', message: 'provider down', retryable: true },
+            error: { code: 'PROVIDER_UNAVAILABLE', message: 'provider down', retryable: opts.retryable ?? true },
             executorUsed: id,
             cost: 0,
             latencyMs: 1,
@@ -274,5 +292,88 @@ describe('PolicyOrchestrator · 生产守卫与异常路径（P1 补测）', () 
     expect(r.executorUsed).toBe('comfyui');
     // 若 skip 分支未记录 attempted，decideFallback 会不断返回 third-party → 死循环（超时）
     // 测试能在有限时间内返回即证明 attempted 已记录
+  });
+});
+
+describe('PolicyOrchestrator · 路由预检 isAvailable（P3 · 本地失败自动切云）', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function makeExecutor(id: 'third-party' | 'comfyui' | 'mock', opts: {
+    fail?: boolean;
+    supports?: string[];
+    /** false → isAvailable 返回 false，路由跳过该 executor（不调用 execute） */
+    available?: boolean;
+    /** isAvailable 抛错（网络超时等）→ 同样按不可用处理 */
+    isAvailableThrow?: boolean;
+  } = {}) {
+    const ex: Executor = {
+      id,
+      productionSafe: id !== 'mock',
+      capabilities: () => new Set(opts.supports ?? ['text2img']),
+      isAvailable: async () => {
+        if (opts.isAvailableThrow) throw new Error('health probe failed');
+        return opts.available !== false;
+      },
+      execute: vi.fn(async () => ({
+        success: !opts.fail,
+        error: opts.fail ? { code: 'PROVIDER_UNAVAILABLE', message: 'down', retryable: true } : undefined,
+        executorUsed: id,
+        artifacts: opts.fail ? undefined : [{ url: 'https://x/a.png', mime: 'image/png' }],
+        cost: 10,
+        latencyMs: 1,
+        traceId: 'trace-1',
+      })),
+    };
+    return ex;
+  }
+
+  it('本地 ComfyUI 不可用 + 云 API 可用 → 自动切云端（不调用 ComfyUI.execute）', async () => {
+    const orch = new PolicyOrchestrator({ production: false });
+    const comfy = makeExecutor('comfyui', { available: false });
+    const cloud = makeExecutor('third-party');
+    orch.register(comfy);
+    orch.register(cloud);
+    const r = await orch.execute({ featureId: 'text2img', userId: 'u1', inputs: {} });
+    expect(r.success).toBe(true);
+    expect(r.executorUsed).toBe('third-party');
+    // 关键断言：ComfyUI 不可用时根本不调用 execute
+    expect(comfy.execute).not.toHaveBeenCalled();
+  });
+
+  it('本地不可用 + 云端也不可用 → 全部失败（ALL_EXECUTORS_FAILED）', async () => {
+    const orch = new PolicyOrchestrator({ production: false });
+    const comfy = makeExecutor('comfyui', { available: false });
+    const cloud = makeExecutor('third-party', { available: false });
+    orch.register(comfy);
+    orch.register(cloud);
+    const r = await orch.execute({ featureId: 'text2img', userId: 'u1', inputs: {} });
+    expect(r.success).toBe(false);
+    expect(r.error?.code).toBe('ALL_EXECUTORS_FAILED');
+    expect(comfy.execute).not.toHaveBeenCalled();
+    expect(cloud.execute).not.toHaveBeenCalled();
+  });
+
+  it('isAvailable 抛错（网络超时）→ 按不可用处理，直接切下一个', async () => {
+    const orch = new PolicyOrchestrator({ production: false });
+    const comfy = makeExecutor('comfyui', { isAvailableThrow: true });
+    const cloud = makeExecutor('third-party');
+    orch.register(comfy);
+    orch.register(cloud);
+    const r = await orch.execute({ featureId: 'text2img', userId: 'u1', inputs: {} });
+    expect(r.success).toBe(true);
+    expect(r.executorUsed).toBe('third-party');
+    expect(comfy.execute).not.toHaveBeenCalled();
+  });
+
+  it('本地可用 + 云端不可用 → 优先用本地（fallback 不被打扰）', async () => {
+    const orch = new PolicyOrchestrator({ production: false });
+    const comfy = makeExecutor('comfyui', { available: true });
+    const cloud = makeExecutor('third-party', { available: false });
+    orch.register(comfy);
+    orch.register(cloud);
+    const r = await orch.execute({ featureId: 'text2img', userId: 'u1', inputs: {} });
+    expect(r.success).toBe(true);
+    expect(r.executorUsed).toBe('comfyui');
+    expect(cloud.execute).not.toHaveBeenCalled();
   });
 });

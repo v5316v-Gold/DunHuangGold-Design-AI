@@ -3,7 +3,7 @@
  *
  * 4 大能力：LLM / Image / Video (async) / TTS / Music / Voice Clone
  * 协议：OpenAI 兼容 + 自有扩展
- * 基础：https://api.minimax.chat/v1
+ * 基础：https://api.minimaxi.com/v1  （MiniMax 官方域名，可被环境变量 MINIMAX_API_BASE 覆盖）
  *
  * 实测可用端点（Phase 9.19）：
  *   POST /v1/chat/completions        — LLM (OpenAI 兼容)
@@ -25,7 +25,9 @@ import { logAudit } from './audit-logger';
 
 const logger = createLogger('minimax-call');
 
-const MINIMAX_API_BASE = process.env.MINIMAX_API_BASE || 'https://api.minimax.chat/v1';
+// MiniMax 真实 API 域名（修复 2026-08-20：原 api.minimax.chat 是项目代号占位域名，
+// 真实域名经 DNS 解析为 api.minimaxi.com）
+const MINIMAX_API_BASE = process.env.MINIMAX_API_BASE || 'https://api.minimaxi.com/v1';
 
 // ==================== 类型 ====================
 

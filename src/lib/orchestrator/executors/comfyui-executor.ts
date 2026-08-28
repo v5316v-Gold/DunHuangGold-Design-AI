@@ -13,7 +13,7 @@
 // Executor 接口直接用新 Port 的（老 Executor 字段是新 Executor 的子集）。
 import type { Executor } from '@/lib/ai/ports/executor.port';
 import type { FeatureExecutionRequest, FeatureExecutionResult } from '../types';
-import { callComfyUI } from '@/lib/comfyui-call-service';
+import { callComfyUI, checkComfyUIHealth } from '@/lib/comfyui-call-service';
 
 // 16 设计类功能 id（与 features 表 default_executor='comfyui' 对齐）
 // 来源：scripts/seed-features.ts + 011_seed_features_workflow_binding.sql
@@ -32,6 +32,34 @@ export class ComfyUIExecutor implements Executor {
   capabilities(): Set<string> {
     // 16 设计类（明确排除 dialogue → HermesAgentExecutor）
     return COMFYUI_DESIGN_FEATURES;
+  }
+
+  /**
+   * 健康检查（2026-08-20 · P3 路由策略）
+   *
+   * 路由预检：PolicyOrchestrator 在执行前调用 isAvailable()，
+   * ComfyUI 不可用（端口连不上 / /system_stats 返回非 200）时直接跳过，
+   * 不进入 execute（节省 120s 超时 + 噪声日志），让 decideFallback 切到下一个 executor。
+   *
+   * 缓存：5s 内复用上次结果（避免每任务一次网络探活）
+   */
+  private healthCache: { at: number; online: boolean } | null = null;
+  private static readonly HEALTH_TTL_MS = 5000;
+
+  async isAvailable(): Promise<boolean> {
+    const now = Date.now();
+    if (this.healthCache && now - this.healthCache.at < ComfyUIExecutor.HEALTH_TTL_MS) {
+      return this.healthCache.online;
+    }
+    try {
+      const result = await checkComfyUIHealth();
+      const online = result?.online === true;
+      this.healthCache = { at: now, online };
+      return online;
+    } catch {
+      this.healthCache = { at: now, online: false };
+      return false;
+    }
   }
 
   async execute(req: FeatureExecutionRequest): Promise<FeatureExecutionResult> {

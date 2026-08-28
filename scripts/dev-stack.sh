@@ -10,7 +10,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# 在 WSL 中将 Windows 路径 /e/hermes/... 转为内部 /mnt/e/...
+# �?WSL 中将 Windows 路径 /e/hermes/... 转为内部 /mnt/e/...
 if grep -q "^/e/" <<< "$SCRIPT_DIR" 2>/dev/null; then
   PROJECT_DIR=$(echo "$PROJECT_DIR" | sed 's|^/e/|/mnt/e/|')
   COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"

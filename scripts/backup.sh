@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 敦煌金 AI 平台 - 一体化备份脚本(W3)
+# 敦煌�?AI 平台 - 一体化备份脚本(W3)
 # 同时备份 PostgreSQL 数据 + MinIO 对象存储 + 应用配置
 #
 # 用法:
@@ -8,9 +8,9 @@
 #   BACKUP_DIR=/d/backups bash scripts/backup.sh --prune --upload s3://bucket/prefix
 #
 # 设计:
-#   - PG:用 docker exec 拿 pg_dump(custom 格式, 支持选择性 restore)
-#   - MinIO:用 mc mirror --overwrite = false + --remove = false 安全拷贝
-#   - tar.gz 打包所有产物放入 timestamp 目录
+#   - PG:�?docker exec �?pg_dump(custom 格式, 支持选择�?restore)
+#   - MinIO:�?mc mirror --overwrite = false + --remove = false 安全拷贝
+#   - tar.gz 打包所有产物放�?timestamp 目录
 #   - manifest.json 记录 sha256 + size 便于校验
 #
 # 建议 cron(每日 03:00):
@@ -57,18 +57,18 @@ log "--- 备份 PostgreSQL ---"
 PG_FILE="${OUT_DIR}/dunhuang_${DATETIME}.dump"
 if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' | grep -q dunhuang-postgres; then
   if docker exec dunhuang-postgres pg_dump -U "$DB_USER" -d "$DB_NAME" --format=custom > "$PG_FILE" 2>>"$LOGFILE"; then
-    log "✅ PG dump OK ($(du -h "$PG_FILE" | cut -f1))"
+    log "�?PG dump OK ($(du -h "$PG_FILE" | cut -f1))"
   else
-    log "❌ docker pg_dump 失败"; exit 1
+    log "�?docker pg_dump 失败"; exit 1
   fi
 elif command -v pg_dump >/dev/null 2>&1; then
   if PGPASSWORD="$DB_PASSWORD" pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" --format=custom > "$PG_FILE" 2>>"$LOGFILE"; then
-    log "✅ PG dump OK ($(du -h "$PG_FILE" | cut -f1))"
+    log "�?PG dump OK ($(du -h "$PG_FILE" | cut -f1))"
   else
-    log "❌ host pg_dump 失败"; exit 1
+    log "�?host pg_dump 失败"; exit 1
   fi
 else
-  log "⚠️  跳过 PG(无 docker + 无 host pg_dump)"
+  log "⚠️  跳过 PG(�?docker + �?host pg_dump)"
 fi
 
 # ---------- 2. MinIO ----------
@@ -85,10 +85,10 @@ if command -v docker >/dev/null 2>&1 && docker ps --format '{{.Names}}' | grep -
   " > "$MC_FILE.tmp" 2>>"$LOGFILE" || true
   if [[ -s "$MC_FILE.tmp" ]]; then
     mv "$MC_FILE.tmp" "$MC_FILE"
-    log "✅ MinIO mirror OK ($(du -h "$MC_FILE" | cut -f1))"
+    log "�?MinIO mirror OK ($(du -h "$MC_FILE" | cut -f1))"
   else
     rm -f "$MC_FILE.tmp"
-    log "⚠️  跳过 MinIO(bucket 空或 mc 不可用)"
+    log "⚠️  跳过 MinIO(bucket 空或 mc 不可�?"
   fi
 elif command -v mc >/dev/null 2>&1; then
   mc alias set "$MINIO_ALIAS" "$MINIO_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1
@@ -97,16 +97,16 @@ elif command -v mc >/dev/null 2>&1; then
     mc mirror "${MINIO_ALIAS}/${MINIO_BUCKET}" "$TMP_MIRROR_DIR" >/dev/null 2>&1
     tar -czf "$MC_FILE" -C "$TMP_MIRROR_DIR" . 2>>"$LOGFILE"
     rm -rf "$TMP_MIRROR_DIR"
-    log "✅ MinIO mirror OK"
+    log "�?MinIO mirror OK"
   else
-    log "⚠️  bucket 不存在,跳过"
+    log "⚠️  bucket 不存�?跳过"
   fi
 else
-  log "⚠️  跳过 MinIO(无 docker + 无 mc)"
+  log "⚠️  跳过 MinIO(�?docker + �?mc)"
 fi
 
-# ---------- 3. 应用配置(只读 key 名,不备份密文) ----------
-log "--- 备份应用 .env 元数据 ---"
+# ---------- 3. 应用配置(只读 key �?不备份密�? ----------
+log "--- 备份应用 .env 元数�?---"
 ENV_META="${OUT_DIR}/env_meta.txt"
 {
   echo "snapshot_at=${DATETIME}"
@@ -146,34 +146,34 @@ done
 sed -i '$ d' "$MANIFEST"  # 去掉最后一行逗号
 echo '    ]' >> "$MANIFEST"
 echo '}' >> "$MANIFEST"
-log "✅ manifest 已生成"
+log "�?manifest 已生�?
 
 # ---------- 5. prune ----------
 if [[ "$PRUNE" == "1" ]]; then
-  log "--- 清理 ${KEEP_DAYS} 天前的备份 ---"
+  log "--- 清理 ${KEEP_DAYS} 天前的备�?---"
   find "$BACKUP_DIR" -maxdepth 1 -type d -name "dunhuang_*" -mtime "+${KEEP_DAYS}" -exec rm -rf {} \; -print | while read -r d; do
     log "  删除: $(basename "$d")"
   done || true
 fi
 
-# ---------- 6. (可选) 上传到远程 ----------
+# ---------- 6. (可�? 上传到远�?----------
 if [[ -n "$UPLOAD_TO" ]]; then
-  log "--- 上传至 ${UPLOAD_TO} ---"
+  log "--- 上传�?${UPLOAD_TO} ---"
   case "$UPLOAD_TO" in
     s3://*)
       if command -v aws >/dev/null 2>&1; then
         aws s3 cp --recursive "$OUT_DIR/" "$UPLOAD_TO/$(basename "$OUT_DIR")/" >>"$LOGFILE" 2>&1 \
-          && log "✅ S3 upload OK" \
-          || log "❌ S3 upload 失败"
+          && log "�?S3 upload OK" \
+          || log "�?S3 upload 失败"
       else
         log "⚠️  aws CLI 不在 PATH,跳过"
       fi
       ;;
     mc://*)
-      # mc://alias/bucket/prefix  (内置 mc 协议的占位实现)
+      # mc://alias/bucket/prefix  (内置 mc 协议的占位实�?
       dest="${UPLOAD_TO#mc://}"
       if command -v mc >/dev/null 2>&1; then
-        mc cp --recursive "$OUT_DIR" "$dest/" >>"$LOGFILE" 2>&1 && log "✅ mc upload OK" || log "❌ mc upload 失败"
+        mc cp --recursive "$OUT_DIR" "$dest/" >>"$LOGFILE" 2>&1 && log "�?mc upload OK" || log "�?mc upload 失败"
       else
         log "⚠️  mc 不在 PATH,跳过"
       fi
@@ -188,5 +188,5 @@ fi
 TOTAL=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name "dunhuang_*" | wc -l)
 log "=== 一体化备份完成 ==="
 log "本次产物: ${OUT_DIR}"
-log "总保留: ${TOTAL} 份"
+log "总保�? ${TOTAL} �?
 echo "OK"

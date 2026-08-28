@@ -1,5 +1,5 @@
 #!/bin/bash
-# 启动新 web 容器（用 docker run,保留原 env/network/healthcheck）
+# 启动�?web 容器（用 docker run,保留�?env/network/healthcheck�?
 set -e
 
 docker stop dunhuang-web 2>/dev/null || true

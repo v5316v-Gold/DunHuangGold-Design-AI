@@ -240,8 +240,8 @@ export const FEATURE_LIST = [
   { id: 'removebg', order: 13 },
   { id: 'upscale', order: 14 },
   { id: 'watermark', order: 15 },
-  { id: 'dialogue', order: 16 },
-  { id: 'tryon', order: 17 },
+  { id: 'dialogue', order: 0 },   // 灵感与创作 组内置顶
+  { id: 'tryon', order: 16 },   // 灵感与创作 组内末位（保持 1-16 连续，dialogue=0 置顶）
 ];
 
 // ==================== 获取功能信息 ===================

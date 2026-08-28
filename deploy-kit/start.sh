@@ -13,18 +13,18 @@ LOG_DIR="$PROJECT_DIR/logs"
 
 # 检查挂载点
 if [ ! -d "$SSD_MOUNT" ]; then
-    echo "❌ 移动硬盘未挂载: $SSD_MOUNT"
+    echo "�?移动硬盘未挂�? $SSD_MOUNT"
     echo "请先挂载移动硬盘"
     exit 1
 fi
 
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo "❌ 部署目录不存在: $PROJECT_DIR"
+    echo "�?部署目录不存�? $PROJECT_DIR"
     exit 1
 fi
 
 echo "========================================"
-echo "   敦煌金 AI 设计平台 - 启动服务"
+echo "   敦煌�?AI 设计平台 - 启动服务"
 echo "========================================"
 echo ""
 
@@ -32,9 +32,9 @@ echo ""
 mkdir -p "$LOG_DIR"
 
 # 启动 PostgreSQL
-echo "[1/2] 启动 PostgreSQL 数据库..."
+echo "[1/2] 启动 PostgreSQL 数据�?.."
 
-# 检测系统
+# 检测系�?
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
     PG_BIN="/opt/homebrew/opt/postgresql@${PG_VERSION}/bin"
@@ -45,16 +45,16 @@ fi
 
 "$PG_BIN/pg_ctl" -D "$PROJECT_DIR/postgres" -l "$LOG_DIR/pg.log" start
 
-# 等待数据库启动
+# 等待数据库启�?
 sleep 3
 
-# 验证数据库
-echo "    验证数据库连接..."
+# 验证数据�?
+echo "    验证数据库连�?.."
 if ! "$PG_BIN/psql" -U postgres -c "SELECT 1;" > /dev/null 2>&1; then
-    echo "❌ 数据库启动失败，请检查日志: $LOG_DIR/pg.log"
+    echo "�?数据库启动失败，请检查日�? $LOG_DIR/pg.log"
     exit 1
 fi
-echo "✅ 数据库启动成功"
+echo "�?数据库启动成�?
 
 # 获取本机IP
 LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || hostname -I | awk '{print $1}')
@@ -63,22 +63,22 @@ LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || hostname -I | awk '{print $1}')
 echo "[2/2] 启动 Web 应用..."
 cd "$PROJECT_DIR/project/workspace"
 
-# 检查依赖
+# 检查依�?
 if [ ! -d "node_modules" ]; then
-    echo "    首次启动，安装依赖..."
+    echo "    首次启动，安装依�?.."
     pnpm install
 fi
 
-# 数据库迁移
+# 数据库迁�?
 if [ -f ".env.local" ]; then
-    echo "    运行数据库迁移..."
+    echo "    运行数据库迁�?.."
     pnpm db:push > /dev/null 2>&1
 fi
 
 # 后台启动
 nohup pnpm start > "$LOG_DIR/app.log" 2>&1 &
 echo $! > "$LOG_DIR/app.pid"
-echo "✅ Web 应用启动成功"
+echo "�?Web 应用启动成功"
 
 echo ""
 echo "========================================"
@@ -96,5 +96,5 @@ echo "   - 停止服务: bash scripts/stop.sh"
 echo "   - 查看日志: $LOG_DIR"
 echo ""
 
-# 打开浏览器
+# 打开浏览�?
 open http://localhost:5000 2>/dev/null || xdg-open http://localhost:5000 2>/dev/null || true

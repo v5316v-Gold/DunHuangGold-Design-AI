@@ -59,7 +59,9 @@ RUN chmod +x /app/scripts/docker-entrypoint.sh
 # Hermes 本地 CLI mock（scripts/hermes-mock.js → /usr/local/bin/hermes）
 # 让路由的 Hermes 路径真正可用（spawn 'hermes' 成功），AIDialog 走本地分支
 COPY --from=builder /app/scripts/hermes-mock.js /usr/local/bin/hermes
-RUN chmod +x /usr/local/bin/hermes && \
+# 关键：去掉 Windows CRLF 行尾（/usr/bin/env 看到 'node\r' 会失败 exit 127）
+RUN sed -i 's/\r$//' /usr/local/bin/hermes && \
+    chmod +x /usr/local/bin/hermes && \
     ln -sf /usr/local/bin/hermes /usr/bin/hermes
 
 RUN mkdir -p /app/uploads && chown -R nextjs:nodejs /app
